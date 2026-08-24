@@ -1,1 +1,116 @@
+import streamlit as st
+from dataclasses import dataclass
+from typing import Dict
 
+# --- 1. ТАБЛИЧНІ ДАНІ ---
+
+TABLE_G_T1 = {
+    "Хлор": {
+        0.5:  {1: 1.48, 2: 1.05, 3: 0.86, 5: 0.66},
+        1.0:  {1: 2.09, 2: 1.48, 3: 1.21, 5: 0.93},
+        5.0:  {1: 4.68, 2: 3.31, 3: 2.70, 5: 2.09},
+        10.0: {1: 6.62, 2: 4.68, 3: 3.82, 5: 2.96},
+        50.0: {1: 14.8, 2: 10.5, 3: 8.55, 5: 6.62},
+    },
+    "Аміак": {
+        0.5:  {1: 0.45, 2: 0.32, 3: 0.26, 5: 0.20},
+        1.0:  {1: 0.63, 2: 0.45, 3: 0.37, 5: 0.28},
+        5.0:  {1: 1.42, 2: 1.00, 3: 0.82, 5: 0.63},
+        10.0: {1: 2.01, 2: 1.42, 3: 1.16, 5: 0.90},
+        50.0: {1: 4.50, 2: 3.18, 3: 2.60, 5: 2.01},
+    }
+}
+
+TABLE_K_T1 = {
+    "Хлор": {-40: 0.6, -20: 0.75, 0: 0.9, 20: 1.0, 40: 1.15},
+    "Аміак": {-40: 0.8, -20: 0.85, 0: 0.9, 20: 1.0, 40: 1.10}
+}
+
+TABLE_K_M = {
+    "Відкрита місцевість / Степ": 1.0,
+    "Приміська зона / Розріджена забудова": 0.8,
+    "Міська забудова / Лісовий масив": 0.6
+}
+
+# --- 2. ФУНКЦІЇ ІНТЕРПОЛЯЦІЇ ---
+
+def interpolate_1d(x: float, data: Dict[float, float]) -> float:
+    sorted_keys = sorted(data.keys())
+    if x <= sorted_keys[0]: return data[sorted_keys[0]]
+    if x >= sorted_keys[-1]: return data[sorted_keys[-1]]
+    
+    for i in range(len(sorted_keys) - 1):
+        x0, x1 = sorted_keys[i], sorted_keys[i+1]
+        if x0 <= x <= x1:
+            return data[x0] + (data[x1] - data[x0]) * (x - x0) / (x1 - x0)
+    return data[sorted_keys[0]]
+
+def interpolate_2d_G_T1(substance: str, mass: float, wind: float) -> float:
+    table = TABLE_G_T1[substance]
+    masses = sorted(table.keys())
+    m_clamped = max(masses[0], min(mass, masses[-1]))
+    
+    m0 = max([m for m in masses if m <= m_clamped], default=masses[0])
+    m1 = min([m for m in masses if m >= m_clamped], default=masses[-1])
+    
+    v0 = interpolate_1d(wind, table[m0])
+    v1 = interpolate_1d(wind, table[m1])
+    
+    if m0 == m1: return v0
+    return v0 + (v1 - v0) * (m_clamped - m0) / (m1 - m0)
+
+# --- 3. ИНТЕРФЕЙС STREAMLIT ---
+
+st.set_page_config(page_title="Калькулятор Хімічної Небезпеки", page_icon="☣️", layout="wide")
+
+st.title("☣️ Калькулятор прогнозування масштабів хімічного забруднення")
+st.caption("Автоматизований розрахунок за Методикою наказу МВС № 1000 ($Г_1 = Г_{Т1} \\times K_{t1} \\times K_к \\times K_м$)")
+
+col_left, col_right = st.columns([1, 1])
+
+with col_left:
+    st.header("⚙️ Вхідні параметри")
+    
+    mode = st.radio(
+        "Режим прогнозування:",
+        ["Завчасне (оперативне)", "Аварійне (фактичні умови)"]
+    )
+    
+    substance = st.selectbox("Небезпечна хімічна речовина (НХР):", list(TABLE_G_T1.keys()))
+    mass = st.number_input("Загальна маса викиду (Q0), тонн:", min_value=0.1, max_value=1000.0, value=7.5, step=0.5)
+
+    if mode == "Завчасне (оперативне)":
+        st.info("ℹ️ В оперативному режимі використовуються нормативні метеоумови: t = +20°C, v = 1 м/с, відкрита місцевість.")
+        temp = 20.0
+        wind = 1.0
+        terrain_label = "Відкрита місцевість / Степ"
+    else:
+        temp = st.slider("Температура повітря (°C):", min_value=-40, max_value=40, value=15, step=1)
+        wind = st.slider("Швидкість вітру (м/с):", min_value=1.0, max_value=15.0, value=2.5, step=0.5)
+        terrain_label = st.selectbox("Характер місцевості:", list(TABLE_K_M.keys()))
+
+# --- 4. РОЗРАХУНОК ---
+
+g_t1 = interpolate_2d_G_T1(substance, mass, wind)
+k_t1 = interpolate_1d(temp, TABLE_K_T1[substance])
+k_k = 1.0
+k_m = TABLE_K_M[terrain_label]
+
+g_1 = g_t1 * k_t1 * k_k * k_m
+angle = 180.0 if wind <= 1.0 else 90.0
+s_possible = 8.72e-3 * angle * (g_1 ** 2)
+
+# --- 5. ВИВІД РЕЗУЛЬТАТІВ ---
+
+with col_right:
+    st.header("📊 Результати розрахунку")
+    
+    m1, m2 = st.columns(2)
+    m1.metric("Глибина зараження (Г1)", f"{g_1:.2f} км")
+    m2.metric("Площа можливого зараження (Sм)", f"{s_possible:.2f} км²")
+    
+    st.subheader("Коефіцієнти розрахунку:")
+    st.write(f"- **Базова таблична глибина ($Г_{{Т1}}$):** {g_t1:.2f} км")
+    st.write(f"- **Температурний коефіцієнт ($K_{{t1}}$):** {k_t1:.2f}")
+    st.write(f"- **Коефіцієнт маси ($K_к$):** {k_k:.2f}")
+    st.write(f"- **Коефіцієнт місцевості ($K_м$):** {k_m:.2f}")
