@@ -1,4 +1,6 @@
 import streamlit as st
+import folium
+from streamlit_folium import st_folium
 from typing import Dict
 
 # ==============================================================================
@@ -507,22 +509,29 @@ TABLE_K_M = {
     "Міська забудова / Лісовий масив": 0.6
 }
 
-# --- 2. ФУНКЦІЇ ІНТЕРПОЛЯЦІЇ ---
+# ==============================================================================
+# 2. ФУНКЦІЇ ІНТЕРПОЛЯЦІЇ
+# ==============================================================================
 
 def interpolate_1d(x: float, data: Dict[float, float]) -> float:
+    """1D лінійна інтерполяція / екстраполяція для числових ключів словника."""
     sorted_keys = sorted(data.keys())
+    # Примусове приведення типів ключів до float
+    float_data = {float(k): float(v) for k, v in data.items()}
+    
     if x <= sorted_keys[0]: 
-        return data[sorted_keys[0]]
+        return float_data[sorted_keys[0]]
     if x >= sorted_keys[-1]: 
-        return data[sorted_keys[-1]]
+        return float_data[sorted_keys[-1]]
     
     for i in range(len(sorted_keys) - 1):
         x0, x1 = sorted_keys[i], sorted_keys[i+1]
         if x0 <= x <= x1:
-            return data[x0] + (data[x1] - data[x0]) * (x - x0) / (x1 - x0)
-    return data[sorted_keys[0]]
+            return float_data[x0] + (float_data[x1] - float_data[x0]) * (x - x0) / (x1 - x0)
+    return float_data[sorted_keys[0]]
 
 def interpolate_3d_G_T1(substance: str, stability: str, mass: float, wind: float) -> float:
+    """3D інтерполяція Г_Т1 залежно від маси та швидкості вітру."""
     table = TABLE_G_T1[substance][stability]
     masses = sorted(table.keys())
     m_clamped = max(masses[0], min(mass, masses[-1]))
@@ -537,12 +546,14 @@ def interpolate_3d_G_T1(substance: str, stability: str, mass: float, wind: float
         return v0
     return v0 + (v1 - v0) * (m_clamped - m0) / (m1 - m0)
 
-# --- 3. ІНТЕРФЕЙС STREAMLIT ---
+# ==============================================================================
+# 3. ІНТЕРФЕЙС STREAMLIT
+# ==============================================================================
 
 st.set_page_config(page_title="Прогнозування масштабів хімічного забруднення", page_icon="☣️", layout="wide")
 
-st.title("Прогнозування масштабів хімічного забруднення")
-st.caption("Основа розрахунку: Г1 = Г_Т1 × K_t1 × K_к × K_м (За Методикою прогнозування. Наказ МВС № 1000)")
+st.title("Платформа ХБРЯ захисту: Прогнозування хімічного забруднення")
+st.caption("Розрахунок за Методикою прогнозування масштабів забруднення НХР (Наказ МВС № 1000)[cite: 4]")
 
 col_left, col_right = st.columns([1, 1])
 
@@ -558,7 +569,7 @@ with col_left:
     mass = st.number_input("Загальна маса викиду (Q0), тонн:", min_value=0.1, max_value=10000.0, value=7.5, step=0.5)
 
     if mode == "Завчасне (оперативне)":
-        st.info("ℹ️ У завчасному (оперативному) прогнозуванні приймається: стійкість приземного шару повітря = інверсія, t = +20°C, v = 1 м/с, відкрита місцевість.")
+        st.info("ℹ️ У завчасному (оперативному) прогнозуванні приймається: стійкість повітря = інверсія, t = +20°C, v = 1 м/с, відкрита місцевість.")
         stability = "Інверсія"
         temp = 20.0
         wind = 1.0
@@ -574,7 +585,9 @@ with col_left:
         wind = st.slider("Швидкість вітру (м/с):", min_value=1.0, max_value=10.0, value=2.0, step=0.5)
         terrain_label = st.selectbox("Характер місцевості:", list(TABLE_K_M.keys()))
 
-# --- 4. РОЗРАХУНОК ---
+# ==============================================================================
+# 4. РОЗРАХУНОК
+# ==============================================================================
 
 g_t1 = interpolate_3d_G_T1(substance, stability, mass, wind)
 k_t1 = interpolate_1d(temp, TABLE_K_T1[substance])
@@ -585,18 +598,36 @@ g_1 = g_t1 * k_t1 * k_k * k_m
 angle = 180.0 if wind <= 1.0 else 90.0
 s_possible = 8.72e-3 * angle * (g_1 ** 2)
 
-# --- 5. ВИВІД РЕЗУЛЬТАТІВ ---
+# ==============================================================================
+# 5. ВИВІД РЕЗУЛЬТАТІВ ТА КАРТИ
+# ==============================================================================
 
 with col_right:
     st.header("📊 Результати розрахунку")
     
     m1, m2 = st.columns(2)
-    m1.metric("Глибина поширення первинної хмари НХР (Г1)", f"{g_1:.2f} км")
-    m2.metric("Площа можливого забруднення НХР (Sм)", f"{s_possible:.2f} км²")
+    m1.metric("Глибина поширення (Г1)", f"{g_1:.2f} км")
+    m2.metric("Площа можливого забруднення (Sм)", f"{s_possible:.2f} км²")
     
     st.subheader("Вибрана матриця та коефіцієнти:")
     st.write(f"- **Стійкість приземного шару повітря:** `{stability}`")
-    st.write(f"- **Таблична глибина поширення первинної хмари Г1 (Г_Т1):** `{g_t1:.2f} км`")
+    st.write(f"- **Таблична глибина (Г_Т1):** `{g_t1:.2f} км`")
     st.write(f"- **Температурний коефіцієнт (K_t1):** `{k_t1:.2f}`")
     st.write(f"- **Коефіцієнт пропорційності (K_к):** `{k_k:.2f}`")
     st.write(f"- **Коефіцієнт впливу місцевості (K_м):** `{k_m:.2f}`")
+
+    # Відображення геопросторового об'єкту
+    st.subheader("🗺️ Картографічна візуалізація зони")
+    # Базові координати (центр України / орієнтир)
+    m = folium.Map(location=[50.4501, 30.5234], zoom_start=10, tiles="OpenStreetMap")
+    
+    folium.Circle(
+        location=[50.4501, 30.5234],
+        radius=g_1 * 1000,
+        color="red",
+        fill=True,
+        fill_opacity=0.3,
+        popup=f"Зона забруднення: {substance} ({g_1:.2f} км)"
+    ).add_to(m)
+
+    st_folium(m, width=600, height=350)
