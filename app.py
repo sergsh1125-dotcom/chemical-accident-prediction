@@ -1,7 +1,26 @@
-from typing import Dict
+import math
 import folium
 import streamlit as st
 from streamlit_folium import st_folium
+
+# Налаштування сторінки Streamlit на всю ширину
+st.set_page_config(
+    layout="wide", page_title="Розрахунок зони хімічного забруднення"
+)
+
+# Стилі для розширення контейнера карти до правого краю без відступів
+st.markdown(
+    """
+    <style>
+        .block-container {
+            padding-right: 1rem;
+            padding-left: 1rem;
+            max-width: 100%;
+        }
+    </style>
+""",
+    unsafe_allow_html=True,
+)
 
 # ==============================================================================
 # 1. ПОВНА І ТОЧНА МАТРИЦЯ БАЗОВИХ ГЛИБИН Г_Т1 (км) ЗГІДНО З ДОДАТКОМ 1
@@ -1046,57 +1065,144 @@ def calculate_depth_table(table_matrix: dict, table_k: dict, substance: str, atm
     return g_tab * k_tab
 
 # ==============================================================================
-# 4. ГОЛОВНИЙ ІНТЕРФЕЙС СТРІМЛІТ (STREAMLIT APP)
+# 2. ДОПОМІЖНІ ФУНКЦІЇ ІНТЕРПОЛЯЦІЇ ТА ГЕОМЕТРІЇ
 # ==============================================================================
 
-st.set_page_config(page_title="Розрахунок Зон ХБРЯ Зараження", layout="wide")
-st.title("🛡️ Розрахунок Глибини Зони Зараження (Табличний Метод)")
+def interpolate_1d(val, points):
+    sorted_keys = sorted(points.keys())
+    if val <= sorted_keys[0]:
+        return points[sorted_keys[0]]
+    if val >= sorted_keys[-1]:
+        return points[sorted_keys[-1]]
+    for i in range(len(sorted_keys) - 1):
+        x0, x1 = sorted_keys[i], sorted_keys[i + 1]
+        if x0 <= val <= x1:
+            y0, y1 = points[x0], points[x1]
+            return y0 + (y1 - y0) * (val - x0) / (x1 - x0)
 
-col1, col2 = st.columns([1, 2])
-
-with col1:
-    st.header("⚙️ Вхідні параметри")
+def get_base_depth(substance, vert_st, q, wind_v):
+    if substance not in TABLE_G_T1:
+        return 1.0
+    sub_data = TABLE_G_T1[substance]
+    if vert_st not in sub_data:
+        vert_st = list(sub_data.keys())[0]
+    st_data = sub_data[vert_st]
     
-    substance = st.selectbox("Оберіть ХНО:", list(TABLE_G_T1.keys()))
-    atmospheric = st.selectbox("Ступінь вертикальної стійкості повітря:", ["Інверсія", "Ізотермія", "Конвекція"])
-    mass = st.number_input("Кількість речовини (тонн):", min_value=0.1, max_value=10000.0, value=10.0, step=1.0)
-    wind_speed = st.number_input("Швидкість вітру (м/с):", min_value=1.0, max_value=15.0, value=2.0, step=1.0)
-    temp = st.number_input("Температура повітря (°C):", min_value=-20.0, max_value=30.0, value=20.0, step=10.0)
+    q_keys = sorted(st_data.keys())
+    q_target = q_keys[0]
+    for q_k in q_keys:
+        if q >= q_k:
+            q_target = q_k
+        else:
+            break
+            
+    v_dict = st_data[q_target]
+    v_keys = sorted(v_dict.keys())
+    v_target = v_keys[0]
+    for v_k in v_keys:
+        if wind_v >= v_k:
+            v_target = v_k
+        else:
+            break
+            
+    return v_dict[v_target]
 
-    # --------------------------------------------------------------------------
-    # 5. ТІЛЬКИ ТАБЛИЧНИЙ РОЗРАХУНОК Г1 ТА Г2 (БЕЗ Q ТА БЕЗ ФОРМУЛ)
-    # --------------------------------------------------------------------------
-    g1 = calculate_depth_table(TABLE_G_T1, TABLE_K_T1, substance, atmospheric, mass, wind_speed, temp)
-    g2 = calculate_depth_table(TABLE_G_T2, TABLE_K_T2, substance, atmospheric, mass, wind_speed, temp)
+def calculate_zone(substance, vert_st, q, wind_v, temp, v_porsh, is_closed):
+    g_base = get_base_depth(substance, vert_st, q, wind_v)
     
-    # Повна глибина зони ураження Г = max(Г1, Г2) + 0.5 * min(Г1, Г2) або Г1 + Г2 залежно від умов
-    g_total = max(g1, g2) + 0.5 * min(g1, g2)
+    k_t = 1.0
+    if substance in TABLE_K_T1:
+        k_t = interpolate_1d(temp, TABLE_K_T1[substance])
+        
+    g = g_base * k_t
+    
+    if is_closed:
+        g *= 0.5
+        
+    phi = 360.0
+    if wind_v < 0.5:
+        phi = 360.0
+    elif 0.5 <= wind_v <= 1.0:
+        phi = 180.0
+    elif 1.0 < wind_v <= 2.0:
+        phi = 90.0
+    else:
+        phi = 45.0
+        
+    return g, phi
 
-    st.subheader("📊 Результати розрахунку")
-    st.metric(label="Глибина первинної хмари (Г1)", value=f"{g1:.2f} км")
-    st.metric(label="Глибина вторинної хмари (Г2)", value=f"{g2:.2f} км")
-    st.metric(label="Загальна глибина зони (Г)", value=f"{g_total:.2f} км")
+def create_sector_geojson(lat, lon, radius_km, wind_deg, phi_deg):
+    r_m = radius_km * 1000.0
+    points = []
+    
+    if phi_deg >= 360.0:
+        num_pts = 60
+        for i in range(num_pts + 1):
+            angle = math.radians(i * (360.0 / num_pts))
+            d_lat = (r_m * math.cos(angle)) / 111111.0
+            d_lon = (r_m * math.sin(angle)) / (111111.0 * math.cos(math.radians(lat)))
+            points.append([lat + d_lat, lon + d_lon])
+        return [points]
 
-with col2:
-    st.header("🗺️ Карта зони ураження")
+    half_phi = phi_deg / 2.0
+    start_angle = wind_deg - half_phi
+    end_angle = wind_deg + half_phi
     
-    # Відображення на базі Folium
-    m = folium.Map(location=[50.4501, 30.5234], zoom_start=10)
+    points.append([lat, lon])
+    num_pts = 30
+    for i in range(num_pts + 1):
+        ang_deg = start_angle + i * (end_angle - start_angle) / num_pts
+        ang_rad = math.radians(ang_deg)
+        d_lat = (r_m * math.cos(ang_rad)) / 111111.0
+        d_lon = (r_m * math.sin(ang_rad)) / (111111.0 * math.cos(math.radians(lat)))
+        points.append([lat + d_lat, lon + d_lon])
+    points.append([lat, lon])
+    return [points]
+
+# ==============================================================================
+# 3. ІНТЕРФЕЙС STREAMLIT ТА ВІДОБРАЖЕННЯ КАРТИ
+# ==============================================================================
+
+st.title("Розрахунок зони хімічного забруднення (СИСТЕМА РХБЗ)")
+
+col_params, col_map = st.columns([1, 2])
+
+with col_params:
+    st.subheader("Параметри аварії")
+    substance = st.selectbox("СДОР / НХР", list(TABLE_G_T1.keys()))
+    q_val = st.number_input("Кількість речовини, т", min_value=0.1, value=10.0, step=1.0)
+    vert_st = st.selectbox("Стійкість атмосфери", ["Інверсія", "Ізотермія", "Конвекція"])
+    wind_v = st.number_input("Швидкість вітру, м/с", min_value=0.0, value=2.0, step=0.5)
+    wind_deg = st.slider("Напрямок вітру (градуси)", 0, 360, 45)
+    temp = st.slider("Температура повітря, °C", -20, 30, 20)
+    is_closed = st.checkbox("Закрита ємність / піддон", value=False)
     
-    # Масштабне коло зональності зараження
-    folium.Circle(
-        location=[50.4501, 30.5234],
-        radius=g_total * 1000,
-        color="red",
-        fill=True,
-        fill_opacity=0.3,
-        popup=f"Загальна глибина: {g_total:.2f} км\nГ1: {g1:.2f} км\nГ2: {g2:.2f} км"
-    ).add_to(m)
+    lat = st.number_input("Широта", value=50.4501, format="%.4f")
+    lon = st.number_input("Довгота", value=30.5234, format="%.4f")
+    
+    g_res, phi_res = calculate_zone(substance, vert_st, q_val, wind_v, temp, 0, is_closed)
+    
+    st.info(f"**Глибина зони (Г):** {g_res:.2f} км\n\n**Кут сектора (Ф):** {phi_res}°")
+
+with col_map:
+    m = folium.Map(location=[lat, lon], zoom_start=11)
     
     folium.Marker(
-        location=[50.4501, 30.5234],
-        popup="Джерело викиду (Аварія)",
-        icon=folium.Icon(color="red", icon="warning")
+        [lat, lon],
+        popup=f"Джерело викиду: {substance}",
+        icon=folium.Icon(color="red", icon="warning-sign")
     ).add_to(m)
-
-    st_folium(m, width=700, height=500)
+    
+    sector_coords = create_sector_geojson(lat, lon, g_res, wind_deg, phi_res)
+    
+    folium.Polygon(
+        locations=sector_coords,
+        color="red",
+        fill=True,
+        fill_color="orange",
+        fill_opacity=0.4,
+        weight=2,
+        popup=f"Зона ураження: {g_res:.2f} км"
+    ).add_to(m)
+    
+    st_folium(m, width="100%", height=600)
