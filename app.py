@@ -562,7 +562,20 @@ with col_params:
     vert_st = st.selectbox("Стійкість атмосфери", ["Інверсія", "Ізотермія", "Конвекція"])
     wind_v = st.number_input("Швидкість вітру, м/с", min_value=0.0, value=2.0, step=0.5)
     wind_deg = st.slider("Звідки дме вітер (напрямок, градуси)", 0, 360, 90)
-    temp = st.slider("Температура повітря, °C", -20, 30, 20)
+    # Динамічний вибір швидкості вітру залежно від стійкості атмосфери
+    if vert_st == "Ізотермія":
+        wind_options = [1.0, 2.0, 3.0, 4.0, 10.0]
+    else:
+        wind_options = [1.0, 2.0, 3.0, 4.0]
+        
+    # Якщо попереднє значення вітру є в списку, залишаємо його, інакше беремо перше (наприклад, 2.0)
+    default_wind_index = 1 if 2.0 in wind_options else 0
+    wind_v = st.selectbox(
+        "Швидкість вітру, м/с", 
+        wind_options, 
+        index=default_wind_index,
+        format_func=lambda x: f"{int(x) if x.is_integer() else x} м/с"
+    )
     
     km_label = st.selectbox("Коефіцієнт місцевості (Км)", list(KM_OPTIONS.keys()))
     km_val = KM_OPTIONS[km_label]
