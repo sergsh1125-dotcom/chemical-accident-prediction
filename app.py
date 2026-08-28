@@ -415,24 +415,35 @@ def get_base_depth(substance, vert_st, q, wind_v):
         vert_st = list(sub_data.keys())[0]
     st_data = sub_data[vert_st]
     
-    q_keys = sorted([float(k) for k in st_data.keys()])
-    q_target = str(q_keys[0])
+    # Створюємо мапу: float_value -> original_string_key
+    q_map = {float(k): k for k in st_data.keys()}
+    q_keys = sorted(q_map.keys())
+    
+    q_target_val = q_keys[0]
     for q_k in q_keys:
         if q >= q_k:
-            q_target = str(int(q_k) if q_k.is_integer() else q_k)
+            q_target_val = q_k
         else:
             break
             
-    v_dict = st_data[q_target]
-    v_keys = sorted([float(k) for k in v_dict.keys()])
-    v_target = str(v_keys[0])
+    # Отримуємо оригінальний ключ для звернення до словника
+    q_target_str = q_map[q_target_val]
+    v_dict = st_data[q_target_str]
+    
+    # Аналогічно для швидкості вітру
+    v_map = {float(k): k for k in v_dict.keys()}
+    v_keys = sorted(v_map.keys())
+    
+    v_target_val = v_keys[0]
     for v_k in v_keys:
         if wind_v >= v_k:
-            v_target = str(int(v_k) if v_k.is_integer() else v_k)
+            v_target_val = v_k
         else:
             break
             
-    return v_dict[v_target]
+    v_target_str = v_map[v_target_val]
+    return v_dict[v_target_str]
+
 
 def get_base_depth_gt2(substance, vert_st, q, wind_v):
     """Отримання Г_Т2 з матриці вторинної хмари G_t2"""
@@ -440,31 +451,39 @@ def get_base_depth_gt2(substance, vert_st, q, wind_v):
         return 0.0
     
     sub_data = G_t2[substance]
-    q_keys = sorted([float(k) for k in sub_data.keys()])
+    
+    q_map = {float(k): k for k in sub_data.keys()}
+    q_keys = sorted(q_map.keys())
+    
     if not q_keys:
         return 0.0
         
-    q_target = str(q_keys[0])
+    q_target_val = q_keys[0]
     for q_k in q_keys:
         if q >= q_k:
-            q_target = str(int(q_k) if q_k.is_integer() else q_k)
+            q_target_val = q_k
         else:
             break
             
-    if vert_st not in sub_data[q_target]:
+    q_target_str = q_map[q_target_val]
+    
+    if vert_st not in sub_data[q_target_str]:
         return 0.0
         
-    v_dict = sub_data[q_target][vert_st]
-    v_keys = sorted([float(k) for k in v_dict.keys()])
-    v_target = str(v_keys[0])
+    v_dict = sub_data[q_target_str][vert_st]
+    
+    v_map = {float(k): k for k in v_dict.keys()}
+    v_keys = sorted(v_map.keys())
+    
+    v_target_val = v_keys[0]
     for v_k in v_keys:
         if wind_v >= v_k:
-            v_target = str(int(v_k) if v_k.is_integer() else v_k)
+            v_target_val = v_k
         else:
             break
             
-    return v_dict[v_target]
-
+    v_target_str = v_map[v_target_val]
+    return v_dict[v_target_str]
 def calculate_zone(substance, vert_st, q, wind_v, temp, is_closed, km_val):
     # --- 1. Обчислення первинної хмари (Г1) ---
     g1_base = get_base_depth(substance, vert_st, q, wind_v)
