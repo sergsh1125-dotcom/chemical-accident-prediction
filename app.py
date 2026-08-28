@@ -386,8 +386,13 @@ G_t2 = {
         "3000": { "Інверсія": {"1":346.44,"2":312.55,"3":294.29,"4":281.99}, "Конвекція": {"1":24.07,"2":24.06,"3":24.05,"4":24.04}, "Ізотермія": {"1":89.56,"2":85.32,"3":82.93,"4":81.28,"10":76.23} }
     }
 };
+import math
+import streamlit as st
+import folium
+from streamlit_folium import st_folium
+
 # ==============================================================================
-# 2. ДОПОМІЖНІ ФУНКЦІЇ
+# 2. ДОПОМІЖНІ ФУНКЦІЕС ТА РОЗРАХУНКОВА ЛОГІКА
 # ==============================================================================
 
 def interpolate_1d(val, points):
@@ -410,39 +415,80 @@ def get_base_depth(substance, vert_st, q, wind_v):
         vert_st = list(sub_data.keys())[0]
     st_data = sub_data[vert_st]
     
-    q_keys = sorted(st_data.keys())
-    q_target = q_keys[0]
+    q_keys = sorted([float(k) for k in st_data.keys()])
+    q_target = str(q_keys[0])
     for q_k in q_keys:
         if q >= q_k:
-            q_target = q_k
+            q_target = str(int(q_k) if q_k.is_integer() else q_k)
         else:
             break
             
     v_dict = st_data[q_target]
-    v_keys = sorted(v_dict.keys())
-    v_target = v_keys[0]
+    v_keys = sorted([float(k) for k in v_dict.keys()])
+    v_target = str(v_keys[0])
     for v_k in v_keys:
         if wind_v >= v_k:
-            v_target = v_k
+            v_target = str(int(v_k) if v_k.is_integer() else v_k)
+        else:
+            break
+            
+    return v_dict[v_target]
+
+def get_base_depth_gt2(substance, vert_st, q, wind_v):
+    """Отримання Г_Т2 з матриці вторинної хмари G_t2"""
+    if 'G_t2' not in globals() or substance not in G_t2:
+        return 0.0
+    
+    sub_data = G_t2[substance]
+    q_keys = sorted([float(k) for k in sub_data.keys()])
+    if not q_keys:
+        return 0.0
+        
+    q_target = str(q_keys[0])
+    for q_k in q_keys:
+        if q >= q_k:
+            q_target = str(int(q_k) if q_k.is_integer() else q_k)
+        else:
+            break
+            
+    if vert_st not in sub_data[q_target]:
+        return 0.0
+        
+    v_dict = sub_data[q_target][vert_st]
+    v_keys = sorted([float(k) for k in v_dict.keys()])
+    v_target = str(v_keys[0])
+    for v_k in v_keys:
+        if wind_v >= v_k:
+            v_target = str(int(v_k) if v_k.is_integer() else v_k)
         else:
             break
             
     return v_dict[v_target]
 
 def calculate_zone(substance, vert_st, q, wind_v, temp, is_closed, km_val):
-    g_base = get_base_depth(substance, vert_st, q, wind_v)
-    
-    k_t = 1.0
+    # --- 1. Обчислення первинної хмари (Г1) ---
+    g1_base = get_base_depth(substance, vert_st, q, wind_v)
+    kt1 = 1.0
     if substance in TABLE_K_T1:
-        k_t = interpolate_1d(temp, TABLE_K_T1[substance])
+        kt1 = interpolate_1d(temp, TABLE_K_T1[substance])
         
-    # Враховуємо базову глибину, температуру та коефіцієнт місцевості Км
-    g = g_base * k_t * km_val
+    g1 = g1_base * kt1 * km_val
     
-    if is_closed:
-        g *= 0.5
+    # --- 2. Обчислення вторинної хмари (Г2) ---
+    gt2_base = get_base_depth_gt2(substance, vert_st, q, wind_v)
+    
+    kt2 = 1.0
+    if 'K_t2' in globals() and substance in K_t2:
+        kt2 = interpolate_1d(temp, K_t2[substance])
         
-    # Правка №3: кут залежить ВІД СТІЙКОСТІ ПОВІТРЯ
+    kk_val = 0.5 if is_closed else 1.0  # Коефіцієнт Кк (закрита ємність / піддон)
+    g2 = gt2_base * kt2 * kk_val * km_val
+    
+    # --- 3. Визначення загальної глибини (Г) ---
+    r_a = 0.5  # Радіус джерела / аварії (км)
+    g_total = max(g1, g2) + r_a
+    
+    # --- 4. Кут розповсюдження (Ф) залежно від стійкості повітря ---
     if vert_st == "Інверсія":
         phi = 40.0
     elif vert_st == "Ізотермія":
@@ -450,12 +496,11 @@ def calculate_zone(substance, vert_st, q, wind_v, temp, is_closed, km_val):
     else:  # Конвекція
         phi = 70.0
         
-    return g, phi
+    return g_total, g1, g2, phi
+
 def create_sector_geojson(lat, lon, radius_km, wind_deg, phi_deg):
     r_m = radius_km * 1000.0
-    
-    # Правка №2: Розвертаємо напрямок на 180 градусів (куди дме вітер)
-    target_deg = (wind_deg + 180.0) % 360.0
+    target_deg = (wind_deg + 180.0) % 360.0  # Напрямок, куди дме вітер
     
     if phi_deg >= 360.0:
         points = []
@@ -486,13 +531,13 @@ def create_sector_geojson(lat, lon, radius_km, wind_deg, phi_deg):
 # 3. ІНТЕРФЕЙС ТА ВІДОБРАЖЕННЯ
 # ==============================================================================
 
-# Правка №1: Оновлена назва застосунку
 st.title("Аварійний прогноз масштабів хімічної аварії")
 
 col_params, col_map = st.columns([1, 2])
 
 with col_params:
-    st.subheader("Параметри аварії")
+    # Правка №2: Заміна назви розділу
+    st.subheader("Вхідні дані хімічної аварії")
     substance = st.selectbox("СДОР / НХР", list(TABLE_G_T1.keys()))
     q_val = st.number_input("Кількість речовини, т", min_value=0.1, value=10.0, step=1.0)
     vert_st = st.selectbox("Стійкість атмосфери", ["Інверсія", "Ізотермія", "Конвекція"])
@@ -500,45 +545,55 @@ with col_params:
     wind_deg = st.slider("Звідки дме вітер (напрямок, градуси)", 0, 360, 90)
     temp = st.slider("Температура повітря, °C", -20, 30, 20)
     
-    # Правка №6: Додано вибір коефіцієнта Км
     km_label = st.selectbox("Коефіцієнт місцевості (Км)", list(KM_OPTIONS.keys()))
     km_val = KM_OPTIONS[km_label]
     
     is_closed = st.checkbox("Закрита ємність / піддон", value=False)
     
-    st.subheader("Координати джерела")
+    # Правка №3: Заміна заголовка координат
+    st.subheader("Координати хімічно небезпечного об'єкта")
     lat = st.number_input("Широта", value=50.4501, format="%.4f")
     lon = st.number_input("Довгота", value=30.5234, format="%.4f")
     
-    g_res, phi_res = calculate_zone(substance, vert_st, q_val, wind_v, temp, is_closed, km_val)
+    # Обчислення
+    g_res, g1_res, g2_res, phi_res = calculate_zone(substance, vert_st, q_val, wind_v, temp, is_closed, km_val)
     
-    st.info(f"**Глибина зони (Г):** {g_res:.2f} км\n\n**Кут сектора (Ф):** {phi_res}°")
+    # Правка №4: Додано заголовок "Результати розрахунку"
+    st.subheader("Результати розрахунку")
+    
+    # Правка №5: Верхній елемент розрахунку із текстом "глибина хімічного забруднення"
+    st.info(
+        f"**Глибина хімічного забруднення (Г): {g_res:.2f} км**\n\n"
+        f"• Первинна глибина (Г₁): {g1_res:.2f} км\n\n"
+        f"• Вторинна глибина (Г₂): {g2_res:.2f} км\n\n"
+        f"• Кут сектора (Ф): {phi_res}°"
+    )
 
 with col_map:
     m = folium.Map(location=[lat, lon], zoom_start=11)
     
-    # Динамічний вивід результатів засобами Streamlit
+    # Інформаційна панель на карті
     st.markdown(f"""
-    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
-        <h4 style="margin: 0;">Загальна глибина зони хімічного забруднення (Г): 
-        <span style="color: #ff4b4b;">{g_res:.2f} км</span></h4>
+    <div style="background-color: #f0f2f6; padding: 12px; border-radius: 8px; margin-bottom: 12px; border-left: 5px solid #ff4b4b;">
+        <h4 style="margin: 0; color: #1f2937;">Глибина хімічного забруднення (Г): 
+        <span style="color: #d97706; font-size: 1.2em;">{g_res:.2f} км</span></h4>
     </div>
     """, unsafe_allow_html=True)
     
-    # Правка №4: Позначення джерела витоку кругом помаранчевого кольору
+    # Позначення джерела витоку (R = 0.5 км)
     folium.Circle(
         location=[lat, lon],
-        radius=500,  # 0.5 км у метрах
+        radius=500,
         color="darkorange",
         fill=True,
         fill_color="orange",
         fill_opacity=0.8,
-        popup=f"Джерело витоку: {substance} (R=0.5 км)"
+        popup=f"ХНО ({substance}), R_A = 0.5 км"
     ).add_to(m)
     
+    # Побудова та окантовка зони забруднення
     sector_coords = create_sector_geojson(lat, lon, g_res, wind_deg, phi_res)
     
-    # Правка №5: Окантовка зони чорним кольором
     folium.Polygon(
         locations=sector_coords,
         color="black",
@@ -546,7 +601,7 @@ with col_map:
         fill_color="orange",
         fill_opacity=0.35,
         weight=2,
-        popup=f"Зона забруднення: {g_res:.2f} км"
+        popup=f"Глибина хімічного забруднення: {g_res:.2f} км"
     ).add_to(m)
     
     st_folium(m, width="100%", height=650)
