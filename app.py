@@ -441,27 +441,7 @@ def calculate_zone(substance, vert_st, q, wind_v, temp, is_closed, km_val):
     
     if is_closed:
         g *= 0.5
-        // 1. Визначення Г_Т2 та K_t2
-    let Gt2 = 0;
-    if (G_t2[substance] && G_t2[substance][mass] && G_t2[substance][mass][stability]) {
-        Gt2 = G_t2[substance][mass][stability][windSpeed] || 0;
-    }
-    
-    let Kt2 = 1; // За замовчуванням
-    if (K_t2[substance] && K_t2[substance][temperature]) {
-        Kt2 = K_t2[substance][temperature];
-    }
-    
-    // 2. Розрахунок вторинної глибини Г2
-    let G2 = Gt2 * Kt2 * K_k * K_m;
-    
-    // 3. Загальна глибина Г
-    let G_total = Math.max(G1, G2) + R_A;
-    
-    // Вивід результатів в інтерфейс
-    document.getElementById("result_G2").innerText = G2.toFixed(2) + " км";
-    document.getElementById("result_G_total").innerText = G_total.toFixed(2) + " км";
-}
+        
     # Правка №3: кут залежить ВІД СТІЙКОСТІ ПОВІТРЯ
     if vert_st == "Інверсія":
         phi = 40.0
@@ -471,7 +451,6 @@ def calculate_zone(substance, vert_st, q, wind_v, temp, is_closed, km_val):
         phi = 70.0
         
     return g, phi
-
 def create_sector_geojson(lat, lon, radius_km, wind_deg, phi_deg):
     r_m = radius_km * 1000.0
     
@@ -537,14 +516,16 @@ with col_params:
 
 with col_map:
     m = folium.Map(location=[lat, lon], zoom_start=11)
-    <div class="results-container">
-    <p>Первинна глибина зони (Г1): <span id="result_G1">0.00 км</span></p>
-    <p>Вторинна глибина зони (Г2): <span id="result_G2">0.00 км</span></p>
-    <hr>
-    <h4>Загальна глибина зони хімічного забруднення (Г):</h4>
-    <h3><span id="result_G_total" class="highlight">0.00 км</span></h3>
-</div>
-    # Правка №4: Позначення джерела витоку кругом помаранчевого кольору радіусом 0.5 км (500 м)
+    
+    # Динамічний вивід результатів засобами Streamlit
+    st.markdown(f"""
+    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+        <h4 style="margin: 0;">Загальна глибина зони хімічного забруднення (Г): 
+        <span style="color: #ff4b4b;">{g_res:.2f} км</span></h4>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Правка №4: Позначення джерела витоку кругом помаранчевого кольору
     folium.Circle(
         location=[lat, lon],
         radius=500,  # 0.5 км у метрах
@@ -557,7 +538,7 @@ with col_map:
     
     sector_coords = create_sector_geojson(lat, lon, g_res, wind_deg, phi_res)
     
-    # Правка №5: Окантовка зони чорним кольором (color="black")
+    # Правка №5: Окантовка зони чорним кольором
     folium.Polygon(
         locations=sector_coords,
         color="black",
