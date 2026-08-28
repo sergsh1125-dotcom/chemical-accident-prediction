@@ -555,20 +555,17 @@ st.title("Аварійний прогноз масштабів хімічної 
 col_params, col_map = st.columns([1, 2])
 
 with col_params:
-    # Правка №2: Заміна назви розділу
     st.subheader("Вхідні дані хімічної аварії")
     substance = st.selectbox("СДОР / НХР", list(TABLE_G_T1.keys()))
     q_val = st.number_input("Кількість речовини, т", min_value=0.1, value=10.0, step=1.0)
     vert_st = st.selectbox("Стійкість атмосфери", ["Інверсія", "Ізотермія", "Конвекція"])
-    wind_v = st.number_input("Швидкість вітру, м/с", min_value=0.0, value=2.0, step=0.5)
-    wind_deg = st.slider("Звідки дме вітер (напрямок, градуси)", 0, 360, 90)
-    # Динамічний вибір швидкості вітру залежно від стійкості атмосфери
+    
+    # 1. СПОЧАТКУ створюємо змінну wind_v (залежно від vert_st)
     if vert_st == "Ізотермія":
         wind_options = [1.0, 2.0, 3.0, 4.0, 10.0]
     else:
         wind_options = [1.0, 2.0, 3.0, 4.0]
         
-    # Якщо попереднє значення вітру є в списку, залишаємо його, інакше беремо перше (наприклад, 2.0)
     default_wind_index = 1 if 2.0 in wind_options else 0
     wind_v = st.selectbox(
         "Швидкість вітру, м/с", 
@@ -577,30 +574,28 @@ with col_params:
         format_func=lambda x: f"{int(x) if x.is_integer() else x} м/с"
     )
     
+    wind_deg = st.slider("Звідки дме вітер (напрямок, градуси)", 0, 360, 90)
+    temp = st.slider("Температура повітря, °C", -20, 30, 20)
+    
     km_label = st.selectbox("Коефіцієнт місцевості (Км)", list(KM_OPTIONS.keys()))
     km_val = KM_OPTIONS[km_label]
     
     is_closed = st.checkbox("Закрита ємність / піддон", value=False)
     
-    # Правка №3: Заміна заголовка координат
     st.subheader("Координати хімічно небезпечного об'єкта")
     lat = st.number_input("Широта", value=50.4501, format="%.4f")
     lon = st.number_input("Довгота", value=30.5234, format="%.4f")
     
-    # Обчислення
+    # 2. ПОТІМ викликаємо розрахунок, коли змінні вже існують
     g_res, g1_res, g2_res, phi_res = calculate_zone(substance, vert_st, q_val, wind_v, temp, is_closed, km_val)
     
-    # Правка №4: Додано заголовок "Результати розрахунку"
     st.subheader("Результати розрахунку")
-    
-    # Правка №5: Верхній елемент розрахунку із текстом "глибина хімічного забруднення"
     st.info(
         f"**Глибина хімічного забруднення (Г): {g_res:.2f} км**\n\n"
         f"• Первинна глибина (Г₁): {g1_res:.2f} км\n\n"
         f"• Вторинна глибина (Г₂): {g2_res:.2f} км\n\n"
         f"• Кут сектора (Ф): {phi_res}°"
     )
-
 with col_map:
     m = folium.Map(location=[lat, lon], zoom_start=11)
     
