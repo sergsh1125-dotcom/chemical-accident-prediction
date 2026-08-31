@@ -22,7 +22,7 @@ KM_OPTIONS = getattr(
 )
 
 # ------------------------------------------------------------------------------
-# 2. ІНІЦІАЛІЗАЦІЯ SESSION STATE (ПК + СМАРТФОН)
+# 2. ІНІЦІАЛІЗАЦІЯ SESSION STATE
 # ------------------------------------------------------------------------------
 if "lat" not in st.session_state:
     st.session_state["lat"] = 50.4501
@@ -30,7 +30,7 @@ if "lon" not in st.session_state:
     st.session_state["lon"] = 30.5234
 
 # ------------------------------------------------------------------------------
-# 3. ДОПОМІЖНІ ФУНКЦІЇ ТА РОЗРАХУНКОВА ЛОГІКА
+# 3. РОЗРАХУНКОВІ ФУНКЦІЇ
 # ------------------------------------------------------------------------------
 
 def interpolate_1d(val, points):
@@ -130,7 +130,7 @@ def get_base_depth_gt2(substance, vert_st, q, wind_v):
         else:
             break
 
-    v_target_str = v_map[v_target_val]
+    v_target_str = v_map[v_target_str]
     return float(v_dict[v_target_str])
 
 
@@ -164,8 +164,12 @@ def calculate_zone(substance, vert_st, q, wind_v, temp, is_closed, km_val):
 
 
 def create_sector_geojson(lat, lon, radius_km, wind_deg, phi_deg):
+    """
+    Побудова сектора за новою шкалою:
+    0°/360° — Північний, 90° — Західний, 180° — Південний, 270° — Східний.
+    """
     r_m = radius_km * 1000.0
-    target_deg = (wind_deg + 180.0) % 360.0
+    target_deg = wind_deg % 360.0
 
     if phi_deg >= 360.0:
         points = []
@@ -197,17 +201,51 @@ def create_sector_geojson(lat, lon, radius_km, wind_deg, phi_deg):
     return points
 
 
-def get_wind_direction_text(deg):
-    """Визначення назви напрямку звідки дме вітер."""
-    directions = [
-        "Північний (N)", "Пн-Східний (NE)", "Східний (E)", "Пд-Східний (SE)",
-        "Південний (S)", "Пд-Західний (SW)", "Західний (W)", "Пн-Західний (NW)"
-    ]
-    idx = int((deg + 22.5) % 360 // 45)
-    return directions[idx]
+def get_wind_widget_html(wind_deg, wind_v):
+    """Формування метеовіджета у темному стилі із жовтою рамкою та стрілкою."""
+    wind_kmh = wind_v * 3.6
+    
+    return f"""
+    <div style="
+        position: fixed; 
+        bottom: 30px; 
+        left: 20px; 
+        z-index: 9999; 
+        background-color: #1e1e1e; 
+        border: 2px solid #ffcc00; 
+        border-radius: 12px; 
+        padding: 10px 14px; 
+        width: 110px;
+        box-shadow: 0px 4px 10px rgba(0,0,0,0.5);
+        font-family: Arial, sans-serif;
+        color: #ffffff;
+        text-align: center;
+    ">
+        <div style="
+            font-size: 26px; 
+            line-height: 1; 
+            margin-bottom: 4px;
+            display: inline-block;
+            transform: rotate({wind_deg}deg);
+            color: #ffcc00;
+        ">↓</div>
+        <div style="font-size: 18px; font-weight: bold; color: #ffcc00; margin-bottom: 6px;">
+            {int(wind_deg)}°
+        </div>
+        <div style="border-top: 1px dashed #ffcc00; margin-bottom: 6px;"></div>
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #ffcc00; font-weight: bold; margin-bottom: 2px;">
+            <span>м/с:</span>
+            <span style="color: #ffffff;">{wind_v:.1f}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #ffcc00; font-weight: bold;">
+            <span>км/г:</span>
+            <span style="color: #ffffff;">{wind_kmh:.1f}</span>
+        </div>
+    </div>
+    """
 
 # ------------------------------------------------------------------------------
-# 4. ІНТЕРФЕЙС ТА ВІДОБРАЖЕННЯ
+# 4. ІНТЕРФЕЙС STREAMLIT
 # ------------------------------------------------------------------------------
 
 st.set_page_config(layout="wide", page_title="Прогноз хімічної аварії")
@@ -243,9 +281,9 @@ with col_params:
     )
 
     wind_deg = st.slider(
-        "Звідки дме вітер (напрямок, градуси)", 
+        "Напрямок вітру (градуси)", 
         0, 360, 90, 
-        help="90° — вітер з Сходу, зона ураження поширюється на Захід"
+        help="90° — Західний, 180° — Південний, 270° — Східний, 0°/360° — Північний"
     )
     temp = st.slider("Температура повітря, °C", -20, 30, 20)
 
@@ -254,16 +292,19 @@ with col_params:
 
     is_closed = st.checkbox("Закрита ємність / піддон", value=False)
 
+    # --------------------------------------------------------------------------
+    # 1. ВВЕДЕННЯ КООРДИНАТ (Спочатку фіксуємо координати)
+    # --------------------------------------------------------------------------
     st.subheader("📍 Координати об'єкта")
-    st.caption("💡 Введіть цифрами або просто **клікніть / тапніть на карті**:")
+    lat_val = st.number_input("Широта (Lat)", value=st.session_state["lat"], format="%.4f", key="input_lat")
+    lon_val = st.number_input("Довгота (Lon)", value=st.session_state["lon"], format="%.4f", key="input_lon")
 
-    lat = st.number_input("Широта (Lat)", value=st.session_state["lat"], format="%.4f", key="input_lat")
-    lon = st.number_input("Довгота (Lon)", value=st.session_state["lon"], format="%.4f", key="input_lon")
+    st.session_state["lat"] = lat_val
+    st.session_state["lon"] = lon_val
 
-    st.session_state["lat"] = lat
-    st.session_state["lon"] = lon
-
-    # Розрахунок результатів
+    # --------------------------------------------------------------------------
+    # 2. РОЗРАХУНОК ПРОГНОЗУ
+    # --------------------------------------------------------------------------
     g_res, g1_res, g2_res, phi_res, kt1_res, kt2_res = calculate_zone(
         substance, vert_st, q_val, wind_v, temp, is_closed, km_val
     )
@@ -277,16 +318,13 @@ with col_params:
         f"• Кут сектора ураження (Ф): **{phi_res}°**"
     )
 
-    # --------------------------------------------------------------------------
-    # СТВОРЕННЯ ТА ЗБЕРЕЖЕННЯ КАРТИ У ФОРМАТІ HTML
-    # --------------------------------------------------------------------------
+    # Експорт у HTML
     st.subheader("💾 Збереження карти")
-
-    m_export = folium.Map(location=[st.session_state["lat"], st.session_state["lon"]], zoom_start=11, tiles="OpenStreetMap")
     
-    # 1. Радіус джерела аварії
+    m_export = folium.Map(location=[lat_val, lon_val], zoom_start=11, tiles="OpenStreetMap")
+    
     folium.Circle(
-        location=[st.session_state["lat"], st.session_state["lon"]],
+        location=[lat_val, lon_val],
         radius=500,
         color="darkorange",
         fill=True,
@@ -295,8 +333,7 @@ with col_params:
         popup=f"Осередок: {substance}, R_A = 0.5 км",
     ).add_to(m_export)
 
-    # 2. Зона хімічного забруднення
-    sector_coords = create_sector_geojson(st.session_state["lat"], st.session_state["lon"], g_res, wind_deg, phi_res)
+    sector_coords = create_sector_geojson(lat_val, lon_val, g_res, wind_deg, phi_res)
 
     folium.Polygon(
         locations=sector_coords,
@@ -305,70 +342,69 @@ with col_params:
         fill_color="orange",
         fill_opacity=0.35,
         weight=2,
-        popup=f"Глибина зони хімічного забруднення: {g_res:.2f} км (Ф = {phi_res}°)",
+        popup=f"Глибина зони: {g_res:.2f} км (Ф = {phi_res}°)",
     ).add_to(m_export)
 
     folium.Marker(
-        [st.session_state["lat"], st.session_state["lon"]],
+        [lat_val, lon_val],
         popup="Джерело аварії",
         icon=folium.Icon(color="red", icon="warning-sign")
     ).add_to(m_export)
 
-    # 3. Метеорологічний віджет для інтерактивної та експортованої карти
-    target_deg = (wind_deg + 180.0) % 360.0
-    wind_text = get_wind_direction_text(wind_deg)
+    m_export.get_root().html.add_child(folium.Element(get_wind_widget_html(wind_deg, wind_v)))
 
-    widget_html = f"""
-    <div style="
-        position: fixed; 
-        bottom: 25px; 
-        left: 15px; 
-        z-index: 9999; 
-        background: rgba(255, 255, 255, 0.92); 
-        padding: 10px 14px; 
-        border-radius: 8px; 
-        box-shadow: 0px 2px 6px rgba(0,0,0,0.3);
-        font-family: Arial, sans-serif;
-        font-size: 13px;
-        color: #1f2937;
-        line-height: 1.4;
-        border: 1px solid #cbd5e1;
-    ">
-        <div style="font-weight: bold; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
-            <span>🌬️ Метеообстановка</span>
-        </div>
-        <div>Вітер з: <b>{wind_text} ({wind_deg}°)</b></div>
-        <div>Швидкість: <b>{wind_v} м/с</b></div>
-        <div style="margin-top: 4px; display: flex; align-items: center; gap: 6px;">
-            <span>Перенос хмари: <b>{target_deg}°</b></span>
-            <span style="display: inline-block; transform: rotate({target_deg}deg); font-size: 16px; font-weight: bold;">⬆️</span>
-        </div>
-    </div>
-    """
-    m_export.get_root().html.add_child(folium.Element(widget_html))
-
-    # Генерація HTML даних для скачування
     html_bytes = m_export._repr_html_().encode("utf-8")
-
     st.download_button(
         label="📥 Завантажити карту (.html)",
         data=html_bytes,
         file_name="карта_хімічного_забруднення.html",
-        mime="text/html",
-        help="Завантажити автономний файл карти, який можна відкрити в будь-якому браузері"
+        mime="text/html"
     )
 
 with col_map:
-    # Відображення карти у Streamlit
-    map_data = st_folium(m_export, width="100%", height=520, key="folium_map")
+    # --------------------------------------------------------------------------
+    # 3. НАНЕСЕННЯ НА КАРТУ
+    # --------------------------------------------------------------------------
+    st.markdown(
+        f"""
+    <div style="background-color: #f0f2f6; padding: 12px; border-radius: 8px; margin-bottom: 12px; border-left: 5px solid #ff4b4b;">
+        <h4 style="margin: 0; color: #1f2937;">Глибина зони хімічного забруднення (Г): 
+        <span style="color: #d97706; font-size: 1.2em;">{g_res:.2f} км</span></h4>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
 
-    # Обробка кліку по карті
-    if map_data and map_data.get("last_clicked"):
-        click_lat = map_data["last_clicked"]["lat"]
-        click_lon = map_data["last_clicked"]["lng"]
+    m_display = folium.Map(location=[lat_val, lon_val], zoom_start=11, tiles="OpenStreetMap")
 
-        if (round(click_lat, 4) != round(st.session_state["lat"], 4) or 
-            round(click_lon, 4) != round(st.session_state["lon"], 4)):
-            st.session_state["lat"] = round(click_lat, 4)
-            st.session_state["lon"] = round(click_lon, 4)
-            st.rerun()
+    folium.Circle(
+        location=[lat_val, lon_val],
+        radius=500,
+        color="darkorange",
+        fill=True,
+        fill_color="orange",
+        fill_opacity=0.8,
+        popup=f"Осередок: {substance}, R_A = 0.5 км",
+    ).add_to(m_display)
+
+    folium.Polygon(
+        locations=sector_coords,
+        color="black",
+        fill=True,
+        fill_color="orange",
+        fill_opacity=0.35,
+        weight=2,
+        popup=f"Глибина зони: {g_res:.2f} км (Ф = {phi_res}°)",
+    ).add_to(m_display)
+
+    folium.Marker(
+        [lat_val, lon_val],
+        popup="Джерело аварії",
+        icon=folium.Icon(color="red", icon="warning-sign")
+    ).add_to(m_display)
+
+    # Додаємо метеовіджет
+    m_display.get_root().html.add_child(folium.Element(get_wind_widget_html(wind_deg, wind_v)))
+
+    # Відображення без перезапису по кліку
+    st_folium(m_display, width="100%", height=530, key="folium_map_display")
