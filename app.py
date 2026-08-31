@@ -556,8 +556,8 @@ col_params, col_map = st.columns([1, 2])
 
 with col_params:
     st.subheader("Вхідні дані хімічної аварії")
-    substance = st.selectbox("СДОР / НХР", list(TABLE_G_T1.keys()))
-    q_val = st.number_input("Кількість речовини, т", min_value=0.1, value=10.0, step=1.0)
+    substance = st.selectbox("Назва НХР", list(TABLE_G_T1.keys()))
+    q_val = st.number_input("Кількість НХР, т", min_value=0.1, value=10.0, step=1.0)
     vert_st = st.selectbox("Стійкість атмосфери", ["Інверсія", "Ізотермія", "Конвекція"])
     
     # 1. СПОЧАТКУ створюємо змінну wind_v (залежно від vert_st)
@@ -591,7 +591,7 @@ with col_params:
     
     st.subheader("Результати розрахунку")
     st.info(
-        f"**Глибина хімічного забруднення (Г): {g_res:.2f} км**\n\n"
+        f"**Глибина зони хімічного забруднення (Г): {g_res:.2f} км**\n\n"
         f"• Первинна глибина (Г₁): {g1_res:.2f} км\n\n"
         f"• Вторинна глибина (Г₂): {g2_res:.2f} км\n\n"
         f"• Кут сектора (Ф): {phi_res}°"
@@ -602,7 +602,7 @@ with col_map:
     # Інформаційна панель на карті
     st.markdown(f"""
     <div style="background-color: #f0f2f6; padding: 12px; border-radius: 8px; margin-bottom: 12px; border-left: 5px solid #ff4b4b;">
-        <h4 style="margin: 0; color: #1f2937;">Глибина хімічного забруднення (Г): 
+        <h4 style="margin: 0; color: #1f2937;">Глибина зони хімічного забруднення (Г): 
         <span style="color: #d97706; font-size: 1.2em;">{g_res:.2f} км</span></h4>
     </div>
     """, unsafe_allow_html=True)
@@ -628,7 +628,7 @@ with col_map:
         fill_color="orange",
         fill_opacity=0.35,
         weight=2,
-        popup=f"Глибина хімічного забруднення: {g_res:.2f} км"
+        popup=f"Глибина зони хімічного забруднення: {g_res:.2f} км"
     ).add_to(m)
     
     st_folium(m, width="100%", height=650)
