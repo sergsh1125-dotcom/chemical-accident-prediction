@@ -71,8 +71,8 @@ def get_base_depth(substance, vert_st, q, wind_v):
         else:
             break
 
-    q_target_str = q_map[q_target_val]
-    v_dict = st_data[q_target_str]
+    q_target_key = q_map[q_target_val]
+    v_dict = st_data[q_target_key]
 
     v_map = {float(k): k for k in v_dict.keys()}
     v_keys = sorted(v_map.keys())
@@ -87,8 +87,8 @@ def get_base_depth(substance, vert_st, q, wind_v):
         else:
             break
 
-    v_target_str = v_map[v_target_val]
-    return float(v_dict[v_target_str])
+    v_target_key = v_map[v_target_val]  # Виправлено назву змінної
+    return float(v_dict[v_target_key])
 
 
 def get_base_depth_gt2(substance, vert_st, q, wind_v):
@@ -110,12 +110,12 @@ def get_base_depth_gt2(substance, vert_st, q, wind_v):
         else:
             break
 
-    q_target_str = q_map[q_target_val]
+    q_target_key = q_map[q_target_val]
 
-    if vert_st not in sub_data[q_target_str]:
+    if vert_st not in sub_data[q_target_key]:
         return 0.0
 
-    v_dict = sub_data[q_target_str][vert_st]
+    v_dict = sub_data[q_target_key][vert_st]
 
     v_map = {float(k): k for k in v_dict.keys()}
     v_keys = sorted(v_map.keys())
@@ -130,9 +130,8 @@ def get_base_depth_gt2(substance, vert_st, q, wind_v):
         else:
             break
 
-    v_target_str = v_map[v_target_str]
-    return float(v_dict[v_target_str])
-
+    v_target_key = v_map[v_target_val]  # Виправлено назву змінної (було v_target_str = v_map[v_target_str])
+    return float(v_dict[v_target_key])
 
 def calculate_zone(substance, vert_st, q, wind_v, temp, is_closed, km_val):
     g1_base = get_base_depth(substance, vert_st, q, wind_v)
