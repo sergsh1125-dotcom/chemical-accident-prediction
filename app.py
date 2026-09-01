@@ -223,14 +223,14 @@ def create_sector_geojson(lat, lon, radius_km, wind_deg, phi_deg):
 
 
 def get_wind_widget_html(wind_deg, wind_v):
-    """Формування метеовіджета з поворотом стрілки за годинниковою стрілкою.
-    Базовий символ: ↑ (вектор на 0°).
-    Кут wind_deg повертає стрілку за годинниковою стрілкою.
-    Задня частина стрілки відповідає напрямку звідки дме вітер.
+    """Формування метеовіджета зі стрілкою переносу.
+    Базовий символ: ↓ (кінець стрілки спрямований на Південь/0°).
+    Кут повороту дорівнює wind_deg за годинниковою стрілкою від напрямку 0°.
+    Вітер відповідає напрямку ЗВІДКИ він дме.
     """
     wind_kmh = wind_v * 3.6
     
-    # Поворот базової стрілки ↑ (0°) за годинниковою стрілкою на wind_deg
+    # Поворот базової стрілки ↓ (кінець на 0°) за годинниковою стрілкою на wind_deg
     arrow_rotation = float(wind_deg) % 360.0
 
     return f"""
@@ -256,7 +256,7 @@ def get_wind_widget_html(wind_deg, wind_v):
             display: inline-block;
             transform: rotate({arrow_rotation}deg);
             color: #ffcc00;
-        ">↑</div>
+        ">↓</div>
         <div style="font-size: 18px; font-weight: bold; color: #ffcc00; margin-bottom: 6px;">
             {int(wind_deg)}°
         </div>
