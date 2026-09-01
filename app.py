@@ -275,12 +275,12 @@ def get_wind_widget_html(wind_deg, wind_v):
 
 st.set_page_config(layout="wide", page_title="Прогноз хімічної аварії")
 
-st.title("🧪 Аварійний прогноз масштабів хімічної аварії")
+st.title("АВАРІЙНЕ ПРОГНОЗУВАННЯ МАСШТАБІВ ХІМІЧНОГО ЗАБРУДНЕННЯ")
 
 col_params, col_map = st.columns([1, 2])
 
 with col_params:
-    st.subheader("⚙️ Вхідні дані хімічної аварії")
+    st.subheader("Вхідні дані хімічної аварії")
 
     # 3. Об'єднання списку речовин (первинні + вторинні)
     all_substances = sorted(list(set(list(TABLE_G_T1.keys()) + list(G_t2.keys()))))
