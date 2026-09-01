@@ -183,7 +183,10 @@ def calculate_zone(substance, vert_st, q, wind_v, temp, is_closed, km_val):
     else:
         phi = 70.0
 
-    return g_total, g1, g2, phi, kt1, kt2
+    # Розрахунок площі зони можливого хімічного забруднення S (км²)
+    s_area = 8.72e-4 * (g_total ** 2) * phi
+
+    return g_total, g1, g2, phi, kt1, kt2, s_area
 
 
 def create_sector_geojson(lat, lon, radius_km, wind_deg, phi_deg):
@@ -320,7 +323,6 @@ with col_params:
     # --------------------------------------------------------------------------
     st.subheader("📍 Координати об'єкта")
 
-    # Синхронізуємо значення полів введення з актуальними координатами session_state
     st.session_state["input_lat"] = st.session_state["lat"]
     st.session_state["input_lon"] = st.session_state["lon"]
 
@@ -342,13 +344,15 @@ with col_params:
     # --------------------------------------------------------------------------
     # РОЗРАХУНОК ПРОГНОЗУ
     # --------------------------------------------------------------------------
-    g_res, g1_res, g2_res, phi_res, kt1_res, kt2_res = calculate_zone(
+    g_res, g1_res, g2_res, phi_res, kt1_res, kt2_res, s_res = calculate_zone(
         substance, vert_st, q_val, wind_v, temp, is_closed, km_val
     )
 
+    # 1. Додано площу до блоку результатів розрахунку
     st.subheader("📊 Результати розрахунку")
     st.info(
         f"**Глибина зони хімічного забруднення (Г): {g_res:.2f} км**\n\n"
+        f"**Площа зони забруднення (S): {s_res:.2f} км²**\n\n"
         f"• Первинна хмара (Г₁): **{g1_res:.2f} км** (Kₜ₁ = {kt1_res:.2f})\n\n"
         f"• Вторинна хмара (Г₂): **{g2_res:.2f} км** (Kₜ₂ = {kt2_res:.2f})\n\n"
         f"• Радіус осередку аварії (Rₐ): **0.50 км**\n\n"
@@ -379,7 +383,7 @@ with col_params:
         fill_color="orange",
         fill_opacity=0.35,
         weight=2,
-        popup=f"Глибина зони: {g_res:.2f} км (Ф = {phi_res}°)",
+        popup=f"Глибина: {g_res:.2f} км, Площа: {s_res:.2f} км² (Ф = {phi_res}°)",
     ).add_to(m_export)
 
     folium.Marker(
@@ -399,11 +403,14 @@ with col_params:
     )
 
 with col_map:
+    # 2. Додано площу до верхнього блоку над картою
     st.markdown(
         f"""
-    <div style="background-color: #f0f2f6; padding: 12px; border-radius: 8px; margin-bottom: 12px; border-left: 5px solid #ff4b4b;">
-        <h4 style="margin: 0; color: #1f2937;">Глибина зони хімічного забруднення (Г): 
-        <span style="color: #d97706; font-size: 1.2em;">{g_res:.2f} км</span></h4>
+    <div style="background-color: #f0f2f6; padding: 12px; border-radius: 8px; margin-bottom: 12px; border-left: 5px solid #ff4b4b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <h4 style="margin: 0; color: #1f2937;">Глибина зони (Г): 
+        <span style="color: #d97706; font-size: 1.1em;">{g_res:.2f} км</span></h4>
+        <h4 style="margin: 0; color: #1f2937;">Площа зони (S): 
+        <span style="color: #d97706; font-size: 1.1em;">{s_res:.2f} км²</span></h4>
     </div>
     """,
         unsafe_allow_html=True,
@@ -431,7 +438,7 @@ with col_map:
         fill_color="orange",
         fill_opacity=0.35,
         weight=2,
-        popup=f"Глибина зони: {g_res:.2f} км (Ф = {phi_res}°)",
+        popup=f"Глибина: {g_res:.2f} км, Площа: {s_res:.2f} км² (Ф = {phi_res}°)",
     ).add_to(m_display)
 
     folium.Marker(
@@ -442,14 +449,12 @@ with col_map:
 
     m_display.get_root().html.add_child(folium.Element(get_wind_widget_html(wind_deg, wind_v)))
 
-    # Зчитування кліку мишкою / тапу по карті
     map_data = st_folium(m_display, width="100%", height=530, key="folium_map_display")
 
     if map_data and map_data.get("last_clicked"):
         click_lat = round(map_data["last_clicked"]["lat"], 4)
         click_lon = round(map_data["last_clicked"]["lng"], 4)
         
-        # Перевірка чи координати змінилися (щоб уникнути нескінченного циклу)
         if click_lat != st.session_state["lat"] or click_lon != st.session_state["lon"]:
             st.session_state["lat"] = click_lat
             st.session_state["lon"] = click_lon
