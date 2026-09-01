@@ -1,6 +1,5 @@
 import math
 import folium
-from jinja2 import Template
 import streamlit as st
 from streamlit_folium import st_folium
 
@@ -23,74 +22,7 @@ KM_OPTIONS = getattr(
 )
 
 # ------------------------------------------------------------------------------
-# 2. НАТИВНА КНОПКА "ТЕКСТ" (БЕЗ СТАНДАРТНОЇ ПАНЕЛІ)
-# ------------------------------------------------------------------------------
-class TextTool(folium.MacroElement):
-    def __init__(self):
-        super().__init__()
-        self._template = Template("""
-            {% macro script(this, kwargs) %}
-            (function() {
-                var map = {{ this._parent.get_name() }};
-                
-                // Шар для збереження тексту (не зникає при роботі з картою)
-                if (!window.customTextLayer) {
-                    window.customTextLayer = new L.FeatureGroup();
-                }
-                map.addLayer(window.customTextLayer);
-
-                // Створення кнопки "Т"
-                var TextControl = L.Control.extend({
-                    options: { position: 'topleft' },
-                    onAdd: function (map) {
-                        var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-                        var a = L.DomUtil.create('a', '', container);
-                        a.innerHTML = '<b>Т</b>';
-                        a.href = '#';
-                        a.title = 'Нанести текст';
-                        a.style.fontSize = '16px';
-                        a.style.lineHeight = '30px';
-                        a.style.textAlign = 'center';
-                        a.style.width = '30px';
-                        a.style.height = '30px';
-                        a.style.display = 'block';
-                        a.style.background = '#ffffff';
-                        a.style.color = '#000000';
-                        a.style.textDecoration = 'none';
-
-                        // Запобігаємо кліку по карті при натисканні на саму кнопку
-                        L.DomEvent.on(a, 'click', L.DomEvent.stop);
-                        
-                        L.DomEvent.on(a, 'click', function(e) {
-                            e.preventDefault();
-                            var text = prompt("Введіть текст для нанесення:");
-                            if (!text) return;
-
-                            // Змінюємо курсор, щоб показати режим нанесення
-                            map.getContainer().style.cursor = 'crosshair';
-                            
-                            // Очікуємо рівно один клік по карті для розміщення тексту
-                            map.once('click', function(eClick) {
-                                map.getContainer().style.cursor = '';
-                                var myIcon = L.divIcon({
-                                    className: 'my-custom-text',
-                                    html: '<div style="color: black; font-weight: bold; font-size: 15px; background: transparent; white-space: nowrap;">' + text + '</div>',
-                                    iconSize: null,
-                                    iconAnchor: [0, 0]
-                                });
-                                L.marker(eClick.latlng, {icon: myIcon}).addTo(window.customTextLayer);
-                            });
-                        });
-                        return container;
-                    }
-                });
-                map.addControl(new TextControl());
-            })();
-            {% endmacro %}
-        """)
-
-# ------------------------------------------------------------------------------
-# 3. ІНІЦІАЛІЗАЦІЯ SESSION STATE
+# 2. ІНІЦІАЛІЗАЦІЯ SESSION STATE
 # ------------------------------------------------------------------------------
 if "lat" not in st.session_state:
     st.session_state["lat"] = 50.4501
@@ -102,12 +34,16 @@ if "input_lat" not in st.session_state:
 if "input_lon" not in st.session_state:
     st.session_state["input_lon"] = st.session_state["lon"]
 
+# Словник для збереження нанесеного тексту
+if "user_texts" not in st.session_state:
+    st.session_state["user_texts"] = []
+
 def update_from_input():
     st.session_state["lat"] = round(st.session_state["input_lat"], 4)
     st.session_state["lon"] = round(st.session_state["input_lon"], 4)
 
 # ------------------------------------------------------------------------------
-# 4. РОЗРАХУНКОВІ ФУНКЦІЇ (без змін)
+# 3. РОЗРАХУНКОВІ ФУНКЦІЇ
 # ------------------------------------------------------------------------------
 def interpolate_1d(val, points):
     if not points or not isinstance(points, dict): return 1.0
@@ -232,7 +168,7 @@ def get_wind_widget_html(wind_deg, wind_v):
     </div>
     """
 
-def setup_map_base_and_tools(m):
+def setup_map_base(m):
     folium.TileLayer(
         tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         attr="Esri World Imagery", name="супутникова карта", overlay=False, control=True
@@ -242,12 +178,9 @@ def setup_map_base_and_tools(m):
         attr="OpenStreetMap", name="OpenStreetMap", overlay=False, control=True
     ).add_to(m)
     folium.LayerControl(position="topright", collapsed=False).add_to(m)
-    
-    # Додаємо виключно нашу стабільну кнопку Тексту
-    m.add_child(TextTool())
 
 # ------------------------------------------------------------------------------
-# 5. ІНТЕРФЕЙС STREAMLIT
+# 4. ІНТЕРФЕЙС STREAMLIT
 # ------------------------------------------------------------------------------
 st.set_page_config(layout="wide", page_title="Прогноз хімічної аварії")
 st.markdown("""<style>#MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden;} .stAppHeader {display: none;}</style>""", unsafe_allow_html=True)
@@ -256,7 +189,7 @@ st.title("🧪 Аварійний прогноз масштабів хімічн
 col_params, col_map = st.columns([1, 2])
 
 with col_params:
-    st.subheader("⚙️ Вхідні дані хімічної аварії")
+    st.subheader("⚙️ Вхідні дані")
     all_substances = sorted(list(set(list(TABLE_G_T1.keys()) + list(G_t2.keys()))))
     if not all_substances: all_substances = ["Аміак"]
 
@@ -267,11 +200,11 @@ with col_params:
         wind_options = [1.0, 2.0, 3.0, 4.0, 10.0] if vert_st == "Ізотермія" else [1.0, 2.0, 3.0, 4.0]
         default_wind_index = 1 if 2.0 in wind_options else 0
         wind_v = st.selectbox("Швидкість вітру, м/с", wind_options, index=default_wind_index, format_func=lambda x: f"{int(x) if float(x).is_integer() else x} м/с")
-        wind_deg = st.slider("Напрямок вітру (звідки дме)", 0, 360, 90)
+        wind_deg = st.slider("Напрямок вітру", 0, 360, 90)
         temp = st.slider("Температура повітря, °C", -20, 30, 20)
         km_label = st.selectbox("Коефіцієнт місцевості (Км)", list(KM_OPTIONS.keys()))
         km_val = KM_OPTIONS[km_label]
-        is_closed = st.checkbox("Закрита ємність / піддон", value=False)
+        is_closed = st.checkbox("Закрита ємність", value=False)
         submit_btn = st.form_submit_button("🚀 РОЗРАХУВАТИ", use_container_width=True)
 
     st.subheader("📍 Координати об'єкта")
@@ -282,11 +215,10 @@ with col_params:
     lat_val = st.number_input("Широта (Lat)", value=st.session_state["input_lat"], format="%.4f", key="input_lat", on_change=update_from_input)
     lon_val = st.number_input("Довгота (Lon)", value=st.session_state["input_lon"], format="%.4f", key="input_lon", on_change=update_from_input)
 
-    # 🛑 ВАЖЛИВИЙ ПЕРЕМИКАЧ ДЛЯ СТАБІЛЬНОСТІ
     allow_click_move = st.checkbox(
-        "🖱️ Дозволити зміну координат кліком по карті", 
+        "🖱️ Змінювати осередок аварії кліком", 
         value=False, 
-        help="Залиште ВИМКНЕНИМ, щоб безпечно наносити текст. Увімкніть, якщо хочете перемістити осередок аварії кліком."
+        help="Увімкніть, щоб пересунути аварію. ВИМКНІТЬ, якщо хочете просто додавати текст на карту."
     )
 
     g_res, g1_res, g2_res, phi_res, kt1_res, kt2_res, s_res = calculate_zone(substance, vert_st, q_val, wind_v, temp, is_closed, km_val)
@@ -296,21 +228,34 @@ with col_params:
         f"**Глибина (Г): {g_res:.2f} км**\n\n"
         f"**Площа (S): {s_res:.2f} км²**\n\n"
         f"• Первинна хмара (Г₁): {g1_res:.2f} км\n\n"
-        f"• Вторинна хмара (Г₂): {g2_res:.2f} км\n\n"
-        f"• Радіус осередку (Rₐ): 0.50 км"
+        f"• Вторинна хмара (Г₂): {g2_res:.2f} км"
     )
     
+    # Створення карти для експорту (Включає тексти користувача)
     m_export = folium.Map(location=[st.session_state["lat"], st.session_state["lon"]], zoom_start=11, tiles=None)
-    setup_map_base_and_tools(m_export)
+    setup_map_base(m_export)
+    
+    # Додаємо тексти в експорт
+    for txt_data in st.session_state["user_texts"]:
+        folium.Marker(
+            [txt_data["lat"], txt_data["lon"]],
+            icon=folium.DivIcon(
+                className="custom-text",
+                html=f'<div style="color: #000000; font-weight: bold; font-size: 15px; background: transparent; white-space: nowrap;">{txt_data["text"]}</div>',
+                icon_size=(120, 20),
+                icon_anchor=(0, 0)
+            )
+        ).add_to(m_export)
+
     folium.Circle(location=[st.session_state["lat"], st.session_state["lon"]], radius=500, color="darkorange", fill=True, fill_color="orange", fill_opacity=0.8).add_to(m_export)
     sector_coords = create_sector_geojson(st.session_state["lat"], st.session_state["lon"], g_res, wind_deg, phi_res)
     folium.Polygon(locations=sector_coords, color="black", fill=True, fill_color="orange", fill_opacity=0.35, weight=2).add_to(m_export)
     m_export.get_root().html.add_child(folium.Element(get_wind_widget_html(wind_deg, wind_v)))
     
     st.download_button(
-        label="📥 Завантажити карту (.html)",
+        label="📥 Завантажити HTML карту (з текстом)",
         data=m_export._repr_html_().encode("utf-8"),
-        file_name="карта_хімічного_забруднення.html",
+        file_name="карта_забруднення.html",
         mime="text/html"
     )
 
@@ -318,8 +263,8 @@ with col_map:
     st.markdown(
         f"""
     <div style="background-color: #f0f2f6; padding: 12px; border-radius: 8px; margin-bottom: 12px; border-left: 5px solid #ff4b4b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-        <h4 style="margin: 0; color: #1f2937;">Глибина зони: <span style="color: #d97706;">{g_res:.2f} км</span></h4>
-        <h4 style="margin: 0; color: #1f2937;">Площа зони: <span style="color: #d97706;">{s_res:.2f} км²</span></h4>
+        <h4 style="margin: 0; color: #1f2937;">Глибина: <span style="color: #d97706;">{g_res:.2f} км</span></h4>
+        <h4 style="margin: 0; color: #1f2937;">Площа: <span style="color: #d97706;">{s_res:.2f} км²</span></h4>
     </div>
     """,
         unsafe_allow_html=True,
@@ -329,15 +274,62 @@ with col_map:
     current_lon = st.session_state["lon"]
 
     m_display = folium.Map(location=[current_lat, current_lon], zoom_start=11, tiles=None)
-    setup_map_base_and_tools(m_display)
+    setup_map_base(m_display)
+    
+    # Відмальовуємо тексти на екрані
+    for txt_data in st.session_state["user_texts"]:
+        folium.Marker(
+            [txt_data["lat"], txt_data["lon"]],
+            icon=folium.DivIcon(
+                className="custom-text",
+                html=f'<div style="color: #000000; font-weight: bold; font-size: 15px; background: transparent; white-space: nowrap;">{txt_data["text"]}</div>',
+                icon_size=(120, 20),
+                icon_anchor=(0, 0)
+            )
+        ).add_to(m_display)
     
     folium.Circle(location=[current_lat, current_lon], radius=500, color="darkorange", fill=True, fill_color="orange", fill_opacity=0.8).add_to(m_display)
     folium.Polygon(locations=sector_coords, color="black", fill=True, fill_color="orange", fill_opacity=0.35, weight=2).add_to(m_display)
     m_display.get_root().html.add_child(folium.Element(get_wind_widget_html(wind_deg, wind_v)))
 
-    map_data = st_folium(m_display, width="100%", height=530, key="folium_map_display")
+    map_data = st_folium(m_display, width="100%", height=530, key="main_map")
 
-    # 🛑 ЛОГІКА ПЕРЕМІЩЕННЯ КАРТИ (Працює ТІЛЬКИ якщо чекбокс увімкнено)
+    # --------------------------------------------------------------------------
+    # ПАНЕЛЬ НАНЕСЕННЯ ТЕКСТУ
+    # --------------------------------------------------------------------------
+    st.divider()
+    st.subheader("✍️ Додавання тексту на карту")
+    st.markdown("1. Переконайтесь, що галочка **'Змінювати осередок аварії кліком' вимкнена** (у лівому меню).\n2. **Клікніть мишкою** на карті там, де має бути текст.\n3. Введіть текст у поле нижче та натисніть 'Додати'.")
+    
+    if map_data and map_data.get("last_clicked"):
+        c_lat = round(map_data["last_clicked"]["lat"], 4)
+        c_lon = round(map_data["last_clicked"]["lng"], 4)
+        
+        st.success(f"📍 Вибрана точка для тексту: Широта {c_lat}, Довгота {c_lon}")
+        
+        with st.form(key="text_add_form", clear_on_submit=True):
+            col_text, col_btn = st.columns([3, 1])
+            with col_text:
+                new_text = st.text_input("Введіть текст:", placeholder="Наприклад: Зона евакуації")
+            with col_btn:
+                st.write("") 
+                st.write("") 
+                submitted = st.form_submit_button("➕ Додати")
+            
+            if submitted and new_text.strip():
+                st.session_state["user_texts"].append({
+                    "lat": c_lat,
+                    "lon": c_lon,
+                    "text": new_text.strip()
+                })
+                st.rerun()
+
+    if st.session_state.get("user_texts"):
+        if st.button("🗑️ Очистити всі нанесені тексти"):
+            st.session_state["user_texts"] = []
+            st.rerun()
+
+    # Зміна координат осередку, якщо увімкнено чекбокс
     if allow_click_move and map_data and map_data.get("last_clicked"):
         click_lat = round(map_data["last_clicked"]["lat"], 4)
         click_lon = round(map_data["last_clicked"]["lng"], 4)
