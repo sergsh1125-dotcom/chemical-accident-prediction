@@ -268,29 +268,30 @@ def get_wind_widget_html(wind_deg, wind_v):
 
 
 def setup_map_base_and_tools(m):
-    """Налаштування перемикача шарів карт, інструментів малювання та кнопки 'Текст'."""
+    """Налаштування шарів карти без вимог API-ключа, перемикач з 2 позиціями та кнопка 'Текст'."""
     
-    # 1. Шари карт (без вихідного OSM)
-    satellite_layer = folium.TileLayer(
+    # 1. Супутникова карта Esri
+    folium.TileLayer(
         tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        attr="Esri",
-        name="Супутникова карта",
+        attr="Esri World Imagery",
+        name="супутникова карта",
         overlay=False,
         control=True
     ).add_to(m)
 
-    street_layer = folium.TileLayer(
-        tiles="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-        attr="CartoDB",
-        name="Звичайна карта",
+    # 2. Стандартний безкоштовний шар OpenStreetMap (без вимог ключа API)
+    folium.TileLayer(
+        tiles="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        attr="OpenStreetMap contributors",
+        name="OpenStreetMap",
         overlay=False,
         control=True
     ).add_to(m)
 
-    # Додавання перемикача шарів
+    # Додавання панелі перемикання двох шарів
     folium.LayerControl(position="topright", collapsed=False).add_to(m)
 
-    # 2. Інструменти малювання (Polyline, Polygon, Circle, Rectangle)
+    # 3. Інструменти малювання
     draw = Draw(
         export=False,
         position="topleft",
@@ -306,7 +307,7 @@ def setup_map_base_and_tools(m):
     )
     draw.add_to(m)
 
-    # 3. Кнопка "Текст" для додавання написів
+    # 4. Кнопка "Текст" (Т)
     text_tool_js = """
     <script>
     document.addEventListener("DOMContentLoaded", function() {
@@ -436,6 +437,7 @@ with col_params:
 
     st.subheader("💾 Збереження карти")
     
+    # Створення карти без стандарного базового шару (tiles=None)
     m_export = folium.Map(
         location=[st.session_state["lat"], st.session_state["lon"]], 
         zoom_start=11,
@@ -491,6 +493,7 @@ with col_map:
     current_lat = st.session_state["lat"]
     current_lon = st.session_state["lon"]
 
+    # Карта створюється без дефолтного шару
     m_display = folium.Map(
         location=[current_lat, current_lon], 
         zoom_start=11, 
