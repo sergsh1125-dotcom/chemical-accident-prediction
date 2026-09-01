@@ -204,7 +204,7 @@ with col_params:
         temp = st.slider("Температура повітря, °C", -20, 30, 20)
         km_label = st.selectbox("Коефіцієнт місцевості (Км)", list(KM_OPTIONS.keys()))
         km_val = KM_OPTIONS[km_label]
-        is_closed = st.checkbox("Закрита ємність", value=False)
+        is_closed = st.checkbox("Наявність піддону або обвалування", value=False)
         submit_btn = st.form_submit_button("РОЗРАХУВАТИ", use_container_width=True)
 
     st.subheader("КООРДИНАТИ ХНО")
