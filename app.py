@@ -259,14 +259,17 @@ with col_params:
 with col_map:
     st.markdown(
         f"""
-    <div style="background-color: #f0f2f6; padding: 12px; border-radius: 8px; margin-bottom: 12px; border-left: 5px solid #ff4b4b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-        <h5 style="margin: 0; color: #1f2937;">Глибина прогнозованої зони хімічного забруднення: <span style="color: #d97706;">{g_res:.2f} км</span></h5>
-        <h5 style="margin: 0; color: #1f2937;">Площа прогнозованої зони хімічного забруднення: <span style="color: #d97706;">{s_res:.2f} км²</span></h5>
+    <div style="background-color: #f0f2f6; padding: 6px 12px; border-radius: 8px; margin-bottom: 8px; border-left: 5px solid #ff4b4b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px; line-height: 1.2;">
+        <div style="font-size: 14px; font-weight: bold; color: #1f2937; margin: 0;">
+            Глибина прогнозованої зони хімічного забруднення: <span style="color: #d97706;">{g_res:.2f} км</span>
+        </div>
+        <div style="font-size: 14px; font-weight: bold; color: #1f2937; margin: 0;">
+            Площа прогнозованої зони хімічного забруднення: <span style="color: #d97706;">{s_res:.2f} км²</span>
+        </div>
     </div>
     """,
         unsafe_allow_html=True,
     )
-
     current_lat = st.session_state["lat"]
     current_lon = st.session_state["lon"]
 
