@@ -22,12 +22,22 @@ KM_OPTIONS = getattr(
 )
 
 # ------------------------------------------------------------------------------
-# 2. ІНІЦІАЛІЗАЦІЯ SESSION STATE
+# 2. ІНІЦІАЛІЗАЦІЯ SESSION STATE ТА СИНХРОНІЗАЦІЯ КООРДИНАТ
 # ------------------------------------------------------------------------------
 if "lat" not in st.session_state:
     st.session_state["lat"] = 50.4501
 if "lon" not in st.session_state:
     st.session_state["lon"] = 30.5234
+
+if "input_lat" not in st.session_state:
+    st.session_state["input_lat"] = st.session_state["lat"]
+if "input_lon" not in st.session_state:
+    st.session_state["input_lon"] = st.session_state["lon"]
+
+def update_from_input():
+    """Колбек при ручному введенні в number_input."""
+    st.session_state["lat"] = round(st.session_state["input_lat"], 4)
+    st.session_state["lon"] = round(st.session_state["input_lon"], 4)
 
 # ------------------------------------------------------------------------------
 # 3. РОЗРАХУНКОВІ ФУНКЦІЇ
@@ -36,8 +46,6 @@ if "lon" not in st.session_state:
 def interpolate_1d(val, points):
     if not points or not isinstance(points, dict):
         return 1.0
-    
-    # Фільтруємо ключі, перетворюючи їх на float для безпечного сортування та порівняння
     try:
         sorted_keys = sorted([float(k) for k in points.keys()])
     except (ValueError, TypeError):
@@ -62,6 +70,7 @@ def interpolate_1d(val, points):
             return y0 + (y1 - y0) * (val - x0) / (x1 - x0)
             
     return 1.0
+
 
 def get_base_depth(substance, vert_st, q, wind_v):
     if substance not in TABLE_G_T1:
@@ -178,16 +187,7 @@ def calculate_zone(substance, vert_st, q, wind_v, temp, is_closed, km_val):
 
 
 def create_sector_geojson(lat, lon, radius_km, wind_deg, phi_deg):
-    """
-    Побудова сектора за виправленою метеорологічною шкалою переносу:
-    90°  — зі Сходу на Захід (вектор 180°)
-    180° — з Півдня на Північ (вектор 90°)
-    270° — з Заходу на Схід (вектор 0°)
-    0°/360° — з Півночі на Південь (вектор 270°)
-    """
     r_m = radius_km * 1000.0
-    
-    # Перетворення напрямку звідки дме вітер у вектор переносу хмари
     cloud_vector_deg = (270.0 - wind_deg) % 360.0
 
     if phi_deg >= 360.0:
@@ -212,7 +212,6 @@ def create_sector_geojson(lat, lon, radius_km, wind_deg, phi_deg):
         ang_deg = start_angle + i * (end_angle - start_angle) / num_pts
         ang_rad = math.radians(ang_deg)
         
-        # Двігаємося по колу: dx = R*cos(a), dy = R*sin(a)
         d_lon = (r_m * math.cos(ang_rad)) / (111111.0 * math.cos(math.radians(lat)))
         d_lat = (r_m * math.sin(ang_rad)) / 111111.0
         
@@ -223,14 +222,7 @@ def create_sector_geojson(lat, lon, radius_km, wind_deg, phi_deg):
 
 
 def get_wind_widget_html(wind_deg, wind_v):
-    """Формування метеовіджета зі стрілкою переносу.
-    Базовий символ: ↓ (кінець стрілки спрямований на Південь/0°).
-    Кут повороту дорівнює wind_deg за годинниковою стрілкою від напрямку 0°.
-    Вітер відповідає напрямку ЗВІДКИ він дме.
-    """
     wind_kmh = wind_v * 3.6
-    
-    # Поворот базової стрілки ↓ (кінець на 0°) за годинниковою стрілкою на wind_deg
     arrow_rotation = float(wind_deg) % 360.0
 
     return f"""
@@ -270,19 +262,21 @@ def get_wind_widget_html(wind_deg, wind_v):
             <span style="color: #ffffff;">{wind_kmh:.1f}</span>
         </div>
     </div>
-    """# 4. ІНТЕРФЕЙС STREAMLIT
+    """
+
+# ------------------------------------------------------------------------------
+# 4. ІНТЕРФЕЙС STREAMLIT
 # ------------------------------------------------------------------------------
 
 st.set_page_config(layout="wide", page_title="Прогноз хімічної аварії")
 
-st.title("АВАРІЙНЕ ПРОГНОЗУВАННЯ МАСШТАБІВ ХІМІЧНОГО ЗАБРУДНЕННЯ")
+st.title("🧪 Аварійний прогноз масштабів хімічної аварії")
 
 col_params, col_map = st.columns([1, 2])
 
 with col_params:
-    st.subheader("Вхідні дані хімічної аварії")
+    st.subheader("⚙️ Вхідні дані хімічної аварії")
 
-    # 3. Об'єднання списку речовин (первинні + вторинні)
     all_substances = sorted(list(set(list(TABLE_G_T1.keys()) + list(G_t2.keys()))))
     if not all_substances:
         all_substances = ["Аміак"]
@@ -312,7 +306,7 @@ with col_params:
     wind_deg = st.slider(
         "Напрямок вітру (звідки дме)", 
         0, 360, 90, 
-        help="90° — Східний (рух на Захід), 180° — Південний (рух на Північ), 270° — Західний (рух на Схід), 0°/360° — Північний (рух на Південь)"
+        help="90° — Східний, 180° — Південний, 270° — Західний, 0°/360° — Північний"
     )
     temp = st.slider("Температура повітря, °C", -20, 30, 20)
 
@@ -322,29 +316,27 @@ with col_params:
     is_closed = st.checkbox("Закрита ємність / піддон", value=False)
 
     # --------------------------------------------------------------------------
-    # ВВЕДЕННЯ КООРДИНАТ З СИНХРОНІЗАЦІЄЮ
+    # ВВЕДЕННЯ КООРДИНАТ (ДВОСТОРОННЯ СИНХРОНІЗАЦІЯ)
     # --------------------------------------------------------------------------
     st.subheader("📍 Координати об'єкта")
 
-    def update_lat():
-        st.session_state["lat"] = st.session_state["input_lat"]
-
-    def update_lon():
-        st.session_state["lon"] = st.session_state["input_lon"]
+    # Синхронізуємо значення полів введення з актуальними координатами session_state
+    st.session_state["input_lat"] = st.session_state["lat"]
+    st.session_state["input_lon"] = st.session_state["lon"]
 
     lat_val = st.number_input(
         "Широта (Lat)", 
-        value=st.session_state["lat"], 
+        value=st.session_state["input_lat"], 
         format="%.4f", 
         key="input_lat",
-        on_change=update_lat
+        on_change=update_from_input
     )
     lon_val = st.number_input(
         "Довгота (Lon)", 
-        value=st.session_state["lon"], 
+        value=st.session_state["input_lon"], 
         format="%.4f", 
         key="input_lon",
-        on_change=update_lon
+        on_change=update_from_input
     )
 
     # --------------------------------------------------------------------------
@@ -366,10 +358,10 @@ with col_params:
     # Експорт у HTML
     st.subheader("💾 Збереження карти")
     
-    m_export = folium.Map(location=[lat_val, lon_val], zoom_start=11, tiles="OpenStreetMap")
+    m_export = folium.Map(location=[st.session_state["lat"], st.session_state["lon"]], zoom_start=11, tiles="OpenStreetMap")
     
     folium.Circle(
-        location=[lat_val, lon_val],
+        location=[st.session_state["lat"], st.session_state["lon"]],
         radius=500,
         color="darkorange",
         fill=True,
@@ -378,7 +370,7 @@ with col_params:
         popup=f"Осередок: {substance}, R_A = 0.5 км",
     ).add_to(m_export)
 
-    sector_coords = create_sector_geojson(lat_val, lon_val, g_res, wind_deg, phi_res)
+    sector_coords = create_sector_geojson(st.session_state["lat"], st.session_state["lon"], g_res, wind_deg, phi_res)
 
     folium.Polygon(
         locations=sector_coords,
@@ -391,7 +383,7 @@ with col_params:
     ).add_to(m_export)
 
     folium.Marker(
-        [lat_val, lon_val],
+        [st.session_state["lat"], st.session_state["lon"]],
         popup="Джерело аварії",
         icon=folium.Icon(color="red", icon="warning-sign")
     ).add_to(m_export)
@@ -417,10 +409,13 @@ with col_map:
         unsafe_allow_html=True,
     )
 
-    m_display = folium.Map(location=[lat_val, lon_val], zoom_start=11, tiles="OpenStreetMap")
+    current_lat = st.session_state["lat"]
+    current_lon = st.session_state["lon"]
+
+    m_display = folium.Map(location=[current_lat, current_lon], zoom_start=11, tiles="OpenStreetMap")
 
     folium.Circle(
-        location=[lat_val, lon_val],
+        location=[current_lat, current_lon],
         radius=500,
         color="darkorange",
         fill=True,
@@ -440,20 +435,21 @@ with col_map:
     ).add_to(m_display)
 
     folium.Marker(
-        [lat_val, lon_val],
+        [current_lat, current_lon],
         popup="Джерело аварії",
         icon=folium.Icon(color="red", icon="warning-sign")
     ).add_to(m_display)
 
     m_display.get_root().html.add_child(folium.Element(get_wind_widget_html(wind_deg, wind_v)))
 
-    # Обробка кліків по карті (на ПК та смартфонах)
+    # Зчитування кліку мишкою / тапу по карті
     map_data = st_folium(m_display, width="100%", height=530, key="folium_map_display")
 
     if map_data and map_data.get("last_clicked"):
         click_lat = round(map_data["last_clicked"]["lat"], 4)
         click_lon = round(map_data["last_clicked"]["lng"], 4)
         
+        # Перевірка чи координати змінилися (щоб уникнути нескінченного циклу)
         if click_lat != st.session_state["lat"] or click_lon != st.session_state["lon"]:
             st.session_state["lat"] = click_lat
             st.session_state["lon"] = click_lon
