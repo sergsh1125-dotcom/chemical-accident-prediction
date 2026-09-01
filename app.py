@@ -36,7 +36,6 @@ if "input_lon" not in st.session_state:
     st.session_state["input_lon"] = st.session_state["lon"]
 
 def update_from_input():
-    """Колбек при ручному введенні в number_input."""
     st.session_state["lat"] = round(st.session_state["input_lat"], 4)
     st.session_state["lon"] = round(st.session_state["input_lon"], 4)
 
@@ -268,36 +267,66 @@ def get_wind_widget_html(wind_deg, wind_v):
     """
 
 
-def setup_map_layers_and_draw(m):
-    """Додавання супутникової карти, перемикача шарів та інструменту малювання/тексту."""
-    # 1. Спутникова карта (Esri World Imagery)
-    esri_satellite = folium.TileLayer(
-        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        attr="Esri",
-        name="Супутник (Esri)",
-        overlay=False,
-        control=True
-    ).add_to(m)
-    
-    # 2. Перемикач шарів у правому верхньому кутку
-    folium.LayerControl(position="topright").add_to(m)
-
-    # 3. Кнопка малювання, аннотацій та підпису тексту на карті
+def setup_map_tools(m):
+    """Налаштування інструментів малювання та інтерактивного текстового віджета."""
+    # 1. Прибрано кнопку "експорт" (export=False)
     draw = Draw(
-        export=True,
-        filename="annotations.geojson",
+        export=False,
         position="topleft",
         draw_options={
             "polyline": True,
             "polygon": True,
             "circle": True,
             "rectangle": True,
-            "marker": True,
+            "marker": False,
             "circlemarker": False,
         },
         edit_options={"poly": {"allowIntersection": False}}
     )
     draw.add_to(m)
+
+    # 2. Кнопка "Текст" із випливаючим вікном для додавання підписів
+    text_tool_js = """
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
+        var mapElement = document.querySelector('.folium-map');
+        if (!mapElement) return;
+
+        // Пошук об'єкта карти Folium
+        var mapId = mapElement.id;
+        var map = window[mapId];
+        
+        if (!map) return;
+
+        // Створення кнопки додавання тексту у верхньому лівому кутку
+        var textControl = L.control({position: 'topleft'});
+        textControl.onAdd = function (map) {
+            var div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+            div.innerHTML = '<a href="#" title="Додати текст" style="font-weight: bold; font-size: 16px; line-height: 26px; text-align: center; display: block; width: 30px; height: 30px; background: #fff; color: #333; text-decoration: none;">T</a>';
+            
+            div.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var text = prompt("Введіть текст для нанесення на карту:");
+                if (text && text.trim() !== "") {
+                    map.once('click', function(mapClickEvent) {
+                        var textIcon = L.divIcon({
+                            className: 'custom-text-label',
+                            html: '<div style="font-weight: bold; color: #ffffff; text-shadow: 1px 1px 3px #000, -1px -1px 3px #000, 1px -1px 3px #000, -1px 1px 3px #000; font-size: 14px; white-space: nowrap;">' + text + '</div>',
+                            iconSize: [100, 20],
+                            iconAnchor: [10, 10]
+                        });
+                        L.marker(mapClickEvent.latlng, {icon: textIcon}).addTo(map);
+                    });
+                }
+            };
+            return div;
+        };
+        textControl.addTo(map);
+    });
+    </script>
+    """
+    m.get_root().html.add_child(folium.Element(text_tool_js))
 
 # ------------------------------------------------------------------------------
 # 4. ІНТЕРФЕЙС STREAMLIT
@@ -316,7 +345,6 @@ with col_params:
     if not all_substances:
         all_substances = ["Аміак"]
 
-    # 2. КНОПКА "РОЗРАХУВАТИ" ДЛЯ ВІДПРАВКИ ФОРМИ
     with st.form(key="calc_form"):
         substance = st.selectbox("Назва НХР", all_substances)
 
@@ -374,7 +402,6 @@ with col_params:
         on_change=update_from_input
     )
 
-    # Розрахунок
     g_res, g1_res, g2_res, phi_res, kt1_res, kt2_res, s_res = calculate_zone(
         substance, vert_st, q_val, wind_v, temp, is_closed, km_val
     )
@@ -392,8 +419,14 @@ with col_params:
     # Експорт у HTML
     st.subheader("💾 Збереження карти")
     
-    m_export = folium.Map(location=[st.session_state["lat"], st.session_state["lon"]], zoom_start=11, tiles="OpenStreetMap")
-    setup_map_layers_and_draw(m_export)
+    # Супутникова карта Esri як замовчувана підкладка (без панелі OSM)
+    m_export = folium.Map(
+        location=[st.session_state["lat"], st.session_state["lon"]], 
+        zoom_start=11, 
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attr="Esri"
+    )
+    setup_map_tools(m_export)
 
     folium.Circle(
         location=[st.session_state["lat"], st.session_state["lon"]],
@@ -415,12 +448,6 @@ with col_params:
         fill_opacity=0.35,
         weight=2,
         popup=f"Глибина: {g_res:.2f} км, Площа: {s_res:.2f} км² (Ф = {phi_res}°)",
-    ).add_to(m_export)
-
-    folium.Marker(
-        [st.session_state["lat"], st.session_state["lon"]],
-        popup="Джерело аварії",
-        icon=folium.Icon(color="red", icon="warning-sign")
     ).add_to(m_export)
 
     m_export.get_root().html.add_child(folium.Element(get_wind_widget_html(wind_deg, wind_v)))
@@ -449,8 +476,14 @@ with col_map:
     current_lat = st.session_state["lat"]
     current_lon = st.session_state["lon"]
 
-    m_display = folium.Map(location=[current_lat, current_lon], zoom_start=11, tiles="OpenStreetMap")
-    setup_map_layers_and_draw(m_display)
+    # Супутникова карта Esri без панелі OSM
+    m_display = folium.Map(
+        location=[current_lat, current_lon], 
+        zoom_start=11, 
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attr="Esri"
+    )
+    setup_map_tools(m_display)
 
     folium.Circle(
         location=[current_lat, current_lon],
@@ -470,12 +503,6 @@ with col_map:
         fill_opacity=0.35,
         weight=2,
         popup=f"Глибина: {g_res:.2f} км, Площа: {s_res:.2f} км² (Ф = {phi_res}°)",
-    ).add_to(m_display)
-
-    folium.Marker(
-        [current_lat, current_lon],
-        popup="Джерело аварії",
-        icon=folium.Icon(color="red", icon="warning-sign")
     ).add_to(m_display)
 
     m_display.get_root().html.add_child(folium.Element(get_wind_widget_html(wind_deg, wind_v)))
