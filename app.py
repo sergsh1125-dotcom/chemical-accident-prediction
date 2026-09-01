@@ -184,7 +184,7 @@ def setup_map_base(m):
 # ------------------------------------------------------------------------------
 st.set_page_config(layout="wide", page_title="Прогноз хімічної аварії")
 st.markdown("""<style>#MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden;} .stAppHeader {display: none;}</style>""", unsafe_allow_html=True)
-st.title("АВАРІЙНЕ ПРОГНОЗУВАННЯ МАСШТАБІВ ХІМІЧНОЇ АВАРІЇ")
+st.title("Аварійне прогнозування масштабів хімічної аварії")
 
 col_params, col_map = st.columns([1, 2])
 
