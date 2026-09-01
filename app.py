@@ -267,9 +267,30 @@ def get_wind_widget_html(wind_deg, wind_v):
     """
 
 
-def setup_map_tools(m):
-    """Налаштування інструментів малювання та інтерактивного текстового віджета."""
-    # 1. Прибрано кнопку "експорт" (export=False)
+def setup_map_base_and_tools(m):
+    """Налаштування перемикача шарів карт, інструментів малювання та кнопки 'Текст'."""
+    
+    # 1. Шари карт (без вихідного OSM)
+    satellite_layer = folium.TileLayer(
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attr="Esri",
+        name="Супутникова карта",
+        overlay=False,
+        control=True
+    ).add_to(m)
+
+    street_layer = folium.TileLayer(
+        tiles="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+        attr="CartoDB",
+        name="Звичайна карта",
+        overlay=False,
+        control=True
+    ).add_to(m)
+
+    # Додавання перемикача шарів
+    folium.LayerControl(position="topright", collapsed=False).add_to(m)
+
+    # 2. Інструменти малювання (Polyline, Polygon, Circle, Rectangle)
     draw = Draw(
         export=False,
         position="topleft",
@@ -285,24 +306,21 @@ def setup_map_tools(m):
     )
     draw.add_to(m)
 
-    # 2. Кнопка "Текст" із випливаючим вікном для додавання підписів
+    # 3. Кнопка "Текст" для додавання написів
     text_tool_js = """
     <script>
     document.addEventListener("DOMContentLoaded", function() {
         var mapElement = document.querySelector('.folium-map');
         if (!mapElement) return;
 
-        // Пошук об'єкта карти Folium
         var mapId = mapElement.id;
         var map = window[mapId];
-        
         if (!map) return;
 
-        // Створення кнопки додавання тексту у верхньому лівому кутку
         var textControl = L.control({position: 'topleft'});
         textControl.onAdd = function (map) {
             var div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-            div.innerHTML = '<a href="#" title="Додати текст" style="font-weight: bold; font-size: 16px; line-height: 26px; text-align: center; display: block; width: 30px; height: 30px; background: #fff; color: #333; text-decoration: none;">T</a>';
+            div.innerHTML = '<a href="#" title="Додати текст" style="font-weight: bold; font-size: 16px; line-height: 28px; text-align: center; display: block; width: 30px; height: 30px; background: #ffffff; color: #111111; text-decoration: none;">Т</a>';
             
             div.onclick = function(e) {
                 e.preventDefault();
@@ -312,8 +330,8 @@ def setup_map_tools(m):
                     map.once('click', function(mapClickEvent) {
                         var textIcon = L.divIcon({
                             className: 'custom-text-label',
-                            html: '<div style="font-weight: bold; color: #ffffff; text-shadow: 1px 1px 3px #000, -1px -1px 3px #000, 1px -1px 3px #000, -1px 1px 3px #000; font-size: 14px; white-space: nowrap;">' + text + '</div>',
-                            iconSize: [100, 20],
+                            html: '<div style="font-weight: bold; color: #ffffff; text-shadow: 2px 2px 3px #000, -2px -2px 3px #000, 2px -2px 3px #000, -2px 2px 3px #000; font-size: 15px; white-space: nowrap;">' + text + '</div>',
+                            iconSize: [120, 20],
                             iconAnchor: [10, 10]
                         });
                         L.marker(mapClickEvent.latlng, {icon: textIcon}).addTo(map);
@@ -416,17 +434,14 @@ with col_params:
         f"• Кут сектора ураження (Ф): **{phi_res}°**"
     )
 
-    # Експорт у HTML
     st.subheader("💾 Збереження карти")
     
-    # Супутникова карта Esri як замовчувана підкладка (без панелі OSM)
     m_export = folium.Map(
         location=[st.session_state["lat"], st.session_state["lon"]], 
-        zoom_start=11, 
-        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        attr="Esri"
+        zoom_start=11,
+        tiles=None
     )
-    setup_map_tools(m_export)
+    setup_map_base_and_tools(m_export)
 
     folium.Circle(
         location=[st.session_state["lat"], st.session_state["lon"]],
@@ -476,14 +491,12 @@ with col_map:
     current_lat = st.session_state["lat"]
     current_lon = st.session_state["lon"]
 
-    # Супутникова карта Esri без панелі OSM
     m_display = folium.Map(
         location=[current_lat, current_lon], 
         zoom_start=11, 
-        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        attr="Esri"
+        tiles=None
     )
-    setup_map_tools(m_display)
+    setup_map_base_and_tools(m_display)
 
     folium.Circle(
         location=[current_lat, current_lon],
