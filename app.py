@@ -34,20 +34,34 @@ if "lon" not in st.session_state:
 # ------------------------------------------------------------------------------
 
 def interpolate_1d(val, points):
-    if not points:
+    if not points or not isinstance(points, dict):
         return 1.0
-    sorted_keys = sorted(points.keys())
+    
+    # Фільтруємо ключі, перетворюючи їх на float для безпечного сортування та порівняння
+    try:
+        sorted_keys = sorted([float(k) for k in points.keys()])
+    except (ValueError, TypeError):
+        return 1.0
+
+    if not sorted_keys:
+        return 1.0
+
+    val = float(val)
     if val <= sorted_keys[0]:
-        return points[sorted_keys[0]]
+        return float(points.get(sorted_keys[0], points.get(str(sorted_keys[0]), 1.0)))
     if val >= sorted_keys[-1]:
-        return points[sorted_keys[-1]]
+        return float(points.get(sorted_keys[-1], points.get(str(sorted_keys[-1]), 1.0)))
+
     for i in range(len(sorted_keys) - 1):
         x0, x1 = sorted_keys[i], sorted_keys[i + 1]
         if x0 <= val <= x1:
-            y0, y1 = points[x0], points[x1]
+            y0 = float(points.get(x0, points.get(str(x0), 1.0)))
+            y1 = float(points.get(x1, points.get(str(x1), 1.0)))
+            if x1 == x0:
+                return y0
             return y0 + (y1 - y0) * (val - x0) / (x1 - x0)
+            
     return 1.0
-
 
 def get_base_depth(substance, vert_st, q, wind_v):
     if substance not in TABLE_G_T1:
@@ -137,14 +151,14 @@ def get_base_depth_gt2(substance, vert_st, q, wind_v):
 def calculate_zone(substance, vert_st, q, wind_v, temp, is_closed, km_val):
     g1_base = get_base_depth(substance, vert_st, q, wind_v)
     kt1 = 1.0
-    if substance in TABLE_K_T1:
+    if TABLE_K_T1 and substance in TABLE_K_T1 and TABLE_K_T1[substance]:
         kt1 = interpolate_1d(temp, TABLE_K_T1[substance])
 
     g1 = g1_base * kt1 * km_val
 
     gt2_base = get_base_depth_gt2(substance, vert_st, q, wind_v)
     kt2 = 1.0
-    if K_t2 and substance in K_t2:
+    if K_t2 and substance in K_t2 and K_t2[substance]:
         kt2 = interpolate_1d(temp, K_t2[substance])
 
     kk_val = 0.5 if is_closed else 1.0
