@@ -6,16 +6,45 @@ import streamlit as st
 from streamlit_folium import st_folium
 
 # ------------------------------------------------------------------------------
-# 1. СТВОРЕННЯ НАТИВНОГО КЛАСУ ДЛЯ КНОПКИ "ТЕКСТ"
+# 1. НАТИВНИЙ КЛАС ДЛЯ КНОПКИ "ТЕКСТ" ТА ЗБЕРЕЖЕННЯ ФІГУР
 # ------------------------------------------------------------------------------
-class LeafletTextTool(folium.MacroElement):
+class LeafletCustomDrawingTools(folium.MacroElement):
     def __init__(self):
         super().__init__()
         self._template = Template("""
             {% macro script(this, kwargs) %}
             (function() {
                 var map = {{ this._parent.get_name() }};
-                
+
+                // Шар для збереження користувацьких фігур та тексту
+                if (!window.userDrawnItems) {
+                    window.userDrawnItems = new L.FeatureGroup();
+                }
+                map.addLayer(window.userDrawnItems);
+
+                // Додаємо збережені фігури при перемальовуванні
+                window.userDrawnItems.eachLayer(function(l) {
+                    if (!map.hasLayer(l)) {
+                        map.addLayer(l);
+                    }
+                });
+
+                // Перехоплення подій Leaflet.Draw для збереження фігур із чорним контуром без заливки
+                map.off(L.Draw.Event.CREATED);
+                map.on(L.Draw.Event.CREATED, function (e) {
+                    var layer = e.layer;
+                    if (layer.setStyle) {
+                        layer.setStyle({
+                            color: '#000000',
+                            weight: 2,
+                            fill: false,
+                            fillOpacity: 0
+                        });
+                    }
+                    window.userDrawnItems.addLayer(layer);
+                });
+
+                // Кнопка "Текст" (Т)
                 var textControl = L.control({position: 'topleft'});
                 textControl.onAdd = function (map) {
                     var div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
@@ -29,11 +58,12 @@ class LeafletTextTool(folium.MacroElement):
                             map.once('click', function(mapClickEvent) {
                                 var textIcon = L.divIcon({
                                     className: 'custom-text-label',
-                                    html: '<div style="font-weight: bold; color: #ffffff; text-shadow: 2px 2px 3px #000, -2px -2px 3px #000, 2px -2px 3px #000, -2px 2px 3px #000; font-size: 15px; white-space: nowrap;">' + text + '</div>',
+                                    html: '<div style="font-weight: bold; color: #000000; background: transparent; font-size: 15px; white-space: nowrap;">' + text + '</div>',
                                     iconSize: [120, 20],
-                                    iconAnchor: [10, 10]
+                                    iconAnchor: [0, 0]
                                 });
-                                L.marker(mapClickEvent.latlng, {icon: textIcon}).addTo(map);
+                                var marker = L.marker(mapClickEvent.latlng, {icon: textIcon});
+                                window.userDrawnItems.addLayer(marker);
                             });
                         }
                     };
@@ -308,40 +338,45 @@ def get_wind_widget_html(wind_deg, wind_v):
 
 
 def setup_map_base_and_tools(m):
-    """Налаштування шарів карти та додавання інструментів."""
+    """Налаштування шарів карти, стилів фігур та кнопок керування."""
     
     # 1. Супутникова карта
-    satellite = folium.TileLayer(
+    folium.TileLayer(
         tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         attr="Esri World Imagery",
         name="супутникова карта",
         overlay=False,
         control=True
-    )
-    satellite.add_to(m)
+    ).add_to(m)
 
     # 2. OpenStreetMap
-    osm = folium.TileLayer(
+    folium.TileLayer(
         tiles="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
         attr="OpenStreetMap contributors",
         name="OpenStreetMap",
         overlay=False,
         control=True
-    )
-    osm.add_to(m)
+    ).add_to(m)
 
-    # Перемикач двох шарів у верхньому правому кутку карти
+    # Перемикач шарів у правому верхньому кутку
     folium.LayerControl(position="topright", collapsed=False).add_to(m)
 
-    # 3. Інструменти малювання
+    # 3. Інструменти малювання (Чорний контур, прозора заливка)
+    draw_shape_options = {
+        "color": "#000000",
+        "weight": 2,
+        "fill": False,
+        "fillOpacity": 0
+    }
+
     draw = Draw(
         export=False,
         position="topleft",
         draw_options={
-            "polyline": True,
-            "polygon": True,
-            "circle": True,
-            "rectangle": True,
+            "polyline": {"shapeOptions": draw_shape_options},
+            "polygon": {"shapeOptions": draw_shape_options},
+            "circle": {"shapeOptions": draw_shape_options},
+            "rectangle": {"shapeOptions": draw_shape_options},
             "marker": False,
             "circlemarker": False,
         },
@@ -349,8 +384,8 @@ def setup_map_base_and_tools(m):
     )
     draw.add_to(m)
 
-    # 4. Додавання кнопки "Текст"
-    m.add_child(LeafletTextTool())
+    # 4. Вбудовуємо збереження елементів та кнопку "Текст"
+    m.add_child(LeafletCustomDrawingTools())
 
 # ------------------------------------------------------------------------------
 # 5. ІНТЕРФЕЙС STREAMLIT
@@ -358,7 +393,7 @@ def setup_map_base_and_tools(m):
 
 st.set_page_config(layout="wide", page_title="Прогноз хімічної аварії")
 
-# CSS для приховування службового меню та посилань Streamlit у правому верхньому куті
+# Приховування службових елементів Streamlit у правому верхньому куті
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -368,12 +403,12 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🧪 Аварійний прогноз масштабів хімічної аварії")
+st.title("Аварійний прогноз масштабів хімічної аварії")
 
 col_params, col_map = st.columns([1, 2])
 
 with col_params:
-    st.subheader("⚙️ Вхідні дані хімічної аварії")
+    st.subheader("Вхідні дані хімічної аварії")
 
     all_substances = sorted(list(set(list(TABLE_G_T1.keys()) + list(G_t2.keys()))))
     if not all_substances:
@@ -443,14 +478,14 @@ with col_params:
     st.subheader("📊 Результати розрахунку")
     st.info(
         f"**Глибина зони хімічного забруднення (Г): {g_res:.2f} км**\n\n"
-        f"**Площа зони забруднення (S): {s_res:.2f} км²**\n\n"
+        f"**Площа зони хімічного забруднення (S): {s_res:.2f} км²**\n\n"
         f"• Первинна хмара (Г₁): **{g1_res:.2f} км** (Kₜ₁ = {kt1_res:.2f})\n\n"
         f"• Вторинна хмара (Г₂): **{g2_res:.2f} км** (Kₜ₂ = {kt2_res:.2f})\n\n"
         f"• Радіус осередку аварії (Rₐ): **0.50 км**\n\n"
-        f"• Кут сектора ураження (Ф): **{phi_res}°**"
+        f"• Кут сектора хімічного забруднення (Ф): **{phi_res}°**"
     )
 
-    st.subheader("💾 Збереження карти")
+    st.subheader("Збереження карти")
     
     m_export = folium.Map(
         location=[st.session_state["lat"], st.session_state["lon"]], 
@@ -531,7 +566,7 @@ with col_map:
         fill_color="orange",
         fill_opacity=0.35,
         weight=2,
-        popup=f"Глибина: {g_res:.2f} км, Площа: {s_res:.2f} км² (Ф = {phi_res}°)",
+        popup=f"Глибина хімічного забруднення: {g_res:.2f} км, Площа хімічного забруднення: {s_res:.2f} км² (Ф = {phi_res}°)",
     ).add_to(m_display)
 
     m_display.get_root().html.add_child(folium.Element(get_wind_widget_html(wind_deg, wind_v)))
