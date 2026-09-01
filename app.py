@@ -184,18 +184,18 @@ def setup_map_base(m):
 # ------------------------------------------------------------------------------
 st.set_page_config(layout="wide", page_title="Прогноз хімічної аварії")
 st.markdown("""<style>#MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden;} .stAppHeader {display: none;}</style>""", unsafe_allow_html=True)
-st.title("🧪 Аварійний прогноз масштабів хімічної аварії")
+st.title("АВАРІЙНЕ ПРОГНОЗУВАННЯ МАСШТАБІВ ХІМІЧНОЇ АВАРІЇ")
 
 col_params, col_map = st.columns([1, 2])
 
 with col_params:
-    st.subheader("⚙️ Вхідні дані")
+    st.subheader("Вхідна інформація")
     all_substances = sorted(list(set(list(TABLE_G_T1.keys()) + list(G_t2.keys()))))
     if not all_substances: all_substances = ["Аміак"]
 
     with st.form(key="calc_form"):
-        substance = st.selectbox("Назва НХР", all_substances)
-        q_val = st.number_input("Кількість НХР, т", min_value=0.1, max_value=10000.0, value=10.0, step=1.0)
+        substance = st.selectbox("Назва речовини", all_substances)
+        q_val = st.number_input("Кількість речовини, т", min_value=0.1, max_value=10000.0, value=10.0, step=1.0)
         vert_st = st.selectbox("Стійкість атмосфери", ["Інверсія", "Ізотермія", "Конвекція"])
         wind_options = [1.0, 2.0, 3.0, 4.0, 10.0] if vert_st == "Ізотермія" else [1.0, 2.0, 3.0, 4.0]
         default_wind_index = 1 if 2.0 in wind_options else 0
@@ -205,9 +205,9 @@ with col_params:
         km_label = st.selectbox("Коефіцієнт місцевості (Км)", list(KM_OPTIONS.keys()))
         km_val = KM_OPTIONS[km_label]
         is_closed = st.checkbox("Закрита ємність", value=False)
-        submit_btn = st.form_submit_button("🚀 РОЗРАХУВАТИ", use_container_width=True)
+        submit_btn = st.form_submit_button("РОЗРАХУВАТИ", use_container_width=True)
 
-    st.subheader("📍 Координати об'єкта")
+    st.subheader("КООРДИНАТИ ХНО")
     
     st.session_state["input_lat"] = st.session_state["lat"]
     st.session_state["input_lon"] = st.session_state["lon"]
@@ -216,19 +216,19 @@ with col_params:
     lon_val = st.number_input("Довгота (Lon)", value=st.session_state["input_lon"], format="%.4f", key="input_lon", on_change=update_from_input)
 
     allow_click_move = st.checkbox(
-        "🖱️ Змінювати осередок аварії кліком", 
+        "🖱️ Увімкніть нанесення координат ХНО кліком", 
         value=False, 
-        help="Увімкніть, щоб пересунути аварію. ВИМКНІТЬ, якщо хочете просто додавати текст на карту."
+        help="Вимкніть цю функцію перед нанесенням тексту на карту."
     )
 
     g_res, g1_res, g2_res, phi_res, kt1_res, kt2_res, s_res = calculate_zone(substance, vert_st, q_val, wind_v, temp, is_closed, km_val)
 
-    st.subheader("📊 Результати")
+    st.subheader("Результати аварійного прогнозування")
     st.info(
-        f"**Глибина (Г): {g_res:.2f} км**\n\n"
-        f"**Площа (S): {s_res:.2f} км²**\n\n"
-        f"• Первинна хмара (Г₁): {g1_res:.2f} км\n\n"
-        f"• Вторинна хмара (Г₂): {g2_res:.2f} км"
+        f"**Глибина прогнозованої зони хімічного забруднення (Г): {g_res:.2f} км**\n\n"
+        f"**Площа прогнозованої зони хімічного забруднення (S): {s_res:.2f} км²**\n\n"
+        f"• Глибина розповсюдження первинної хмари (Г₁): {g1_res:.2f} км\n\n"
+        f"• Глибина розповсюдження вторинної хмари (Г₂): {g2_res:.2f} км"
     )
     
     # Створення карти для експорту
@@ -250,7 +250,7 @@ with col_params:
     m_export.get_root().html.add_child(folium.Element(get_wind_widget_html(wind_deg, wind_v)))
     
     st.download_button(
-        label="📥 Завантажити HTML карту (з текстом)",
+        label="📥 Завантажити HTML карту",
         data=m_export._repr_html_().encode("utf-8"),
         file_name="карта_забруднення.html",
         mime="text/html"
@@ -292,8 +292,8 @@ with col_map:
     # ПАНЕЛЬ НАНЕСЕННЯ ТЕКСТУ
     # --------------------------------------------------------------------------
     st.divider()
-    st.subheader("✍️ Додавання тексту на карту")
-    st.markdown("1. Переконайтесь, що галочка **'Змінювати осередок аварії кліком' вимкнена** (у лівому меню).\n2. **Клікніть мишкою** на карті там, де має бути текст.\n3. Введіть текст у поле нижче та натисніть 'Додати'.")
+    st.subheader("Додавання тексту на карту")
+    st.markdown("1. **Переконайтесь, що галочка визначення координат кліком вимкнена (у лівому меню).\n2. **Клікніть мишкою** на карті там, де має бути текст.\n3. Введіть текст у поле нижче та натисніть 'Додати'.")
     
     if map_data and map_data.get("last_clicked"):
         c_lat = round(map_data["last_clicked"]["lat"], 4)
@@ -304,7 +304,7 @@ with col_map:
         with st.form(key="text_add_form", clear_on_submit=True):
             col_text, col_btn = st.columns([3, 1])
             with col_text:
-                new_text = st.text_input("Введіть текст:", placeholder="Наприклад: Зона евакуації")
+                new_text = st.text_input("Введіть текст:", placeholder="Наприклад: хлор - 10 т")
             with col_btn:
                 st.write("") 
                 st.write("") 
@@ -319,7 +319,7 @@ with col_map:
                 st.rerun()
 
     if st.session_state.get("user_texts"):
-        if st.button("🗑️ Очистити всі нанесені тексти"):
+        if st.button("Очистити всі нанесені тексти"):
             st.session_state["user_texts"] = []
             st.rerun()
 
