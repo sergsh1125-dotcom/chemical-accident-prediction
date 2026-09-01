@@ -1,81 +1,11 @@
 import math
 import folium
 from folium.plugins import Draw
-from jinja2 import Template
 import streamlit as st
 from streamlit_folium import st_folium
 
 # ------------------------------------------------------------------------------
-# 1. НАТИВНИЙ КЛАС ДЛЯ КНОПКИ "ТЕКСТ" ТА ЗБЕРЕЖЕННЯ ФІГУР
-# ------------------------------------------------------------------------------
-class LeafletCustomDrawingTools(folium.MacroElement):
-    def __init__(self):
-        super().__init__()
-        self._template = Template("""
-            {% macro script(this, kwargs) %}
-            (function() {
-                var map = {{ this._parent.get_name() }};
-
-                // Шар для збереження користувацьких фігур та тексту
-                if (!window.userDrawnItems) {
-                    window.userDrawnItems = new L.FeatureGroup();
-                }
-                map.addLayer(window.userDrawnItems);
-
-                // Додаємо збережені фігури при перемальовуванні
-                window.userDrawnItems.eachLayer(function(l) {
-                    if (!map.hasLayer(l)) {
-                        map.addLayer(l);
-                    }
-                });
-
-                // Перехоплення подій Leaflet.Draw для збереження фігур із чорним контуром без заливки
-                map.off(L.Draw.Event.CREATED);
-                map.on(L.Draw.Event.CREATED, function (e) {
-                    var layer = e.layer;
-                    if (layer.setStyle) {
-                        layer.setStyle({
-                            color: '#000000',
-                            weight: 2,
-                            fill: false,
-                            fillOpacity: 0
-                        });
-                    }
-                    window.userDrawnItems.addLayer(layer);
-                });
-
-                // Кнопка "Текст" (Т)
-                var textControl = L.control({position: 'topleft'});
-                textControl.onAdd = function (map) {
-                    var div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-                    div.innerHTML = '<a href="#" title="Додати текст" style="font-weight: bold; font-size: 16px; line-height: 28px; text-align: center; display: block; width: 30px; height: 30px; background: #ffffff; color: #111111; text-decoration: none;">Т</a>';
-                    
-                    div.onclick = function(e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        var text = prompt("Введіть текст для нанесення на карту:");
-                        if (text && text.trim() !== "") {
-                            map.once('click', function(mapClickEvent) {
-                                var textIcon = L.divIcon({
-                                    className: 'custom-text-label',
-                                    html: '<div style="font-weight: bold; color: #000000; background: transparent; font-size: 15px; white-space: nowrap;">' + text + '</div>',
-                                    iconSize: [120, 20],
-                                    iconAnchor: [0, 0]
-                                });
-                                var marker = L.marker(mapClickEvent.latlng, {icon: textIcon});
-                                window.userDrawnItems.addLayer(marker);
-                            });
-                        }
-                    };
-                    return div;
-                };
-                textControl.addTo(map);
-            })();
-            {% endmacro %}
-        """)
-
-# ------------------------------------------------------------------------------
-# 2. ІМПОРТ З БАЗИ ДАНИХ ТА ЗАХИСТ ВІД ВІДСУТНІХ ЗМІННИХ
+# 1. ІМПОРТ З БАЗИ ДАНИХ ТА ЗАХИСТ ВІД ВІДСУТНІХ ЗМІННИХ
 # ------------------------------------------------------------------------------
 import data_tables
 
@@ -93,7 +23,7 @@ KM_OPTIONS = getattr(
 )
 
 # ------------------------------------------------------------------------------
-# 3. ІНІЦІАЛІЗАЦІЯ SESSION STATE
+# 2. ІНІЦІАЛІЗАЦІЯ SESSION STATE (ЗБЕРЕЖЕННЯ ФІГУР ТА ТЕКСТУ)
 # ------------------------------------------------------------------------------
 if "lat" not in st.session_state:
     st.session_state["lat"] = 50.4501
@@ -105,12 +35,16 @@ if "input_lat" not in st.session_state:
 if "input_lon" not in st.session_state:
     st.session_state["input_lon"] = st.session_state["lon"]
 
+# Зберігаємо нанесені користувачем геометрії та тексти
+if "user_drawings" not in st.session_state:
+    st.session_state["user_drawings"] = []
+
 def update_from_input():
     st.session_state["lat"] = round(st.session_state["input_lat"], 4)
     st.session_state["lon"] = round(st.session_state["input_lon"], 4)
 
 # ------------------------------------------------------------------------------
-# 4. РОЗРАХУНКОВІ ФУНКЦІЇ
+# 3. РОЗРАХУНКОВІ ФУНКЦІЇ
 # ------------------------------------------------------------------------------
 
 def interpolate_1d(val, points):
@@ -338,8 +272,6 @@ def get_wind_widget_html(wind_deg, wind_v):
 
 
 def setup_map_base_and_tools(m):
-    """Налаштування шарів карти, стилів фігур та кнопок керування."""
-    
     # 1. Супутникова карта
     folium.TileLayer(
         tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -358,10 +290,9 @@ def setup_map_base_and_tools(m):
         control=True
     ).add_to(m)
 
-    # Перемикач шарів у правому верхньому кутку
     folium.LayerControl(position="topright", collapsed=False).add_to(m)
 
-    # 3. Інструменти малювання (Чорний контур, прозора заливка)
+    # 3. Інструменти малювання (чорний контур, без заливки)
     draw_shape_options = {
         "color": "#000000",
         "weight": 2,
@@ -384,16 +315,55 @@ def setup_map_base_and_tools(m):
     )
     draw.add_to(m)
 
-    # 4. Вбудовуємо збереження елементів та кнопку "Текст"
-    m.add_child(LeafletCustomDrawingTools())
+    # 4. Кнопка "Текст" (Т)
+    text_tool_js = """
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
+        var mapElement = document.querySelector('.folium-map');
+        if (!mapElement) return;
+
+        var mapId = mapElement.id;
+        var map = window[mapId];
+        if (!map) return;
+
+        if (map._textControlAdded) return;
+        map._textControlAdded = true;
+
+        var textControl = L.control({position: 'topleft'});
+        textControl.onAdd = function (map) {
+            var div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+            div.innerHTML = '<a href="#" title="Додати текст" style="font-weight: bold; font-size: 16px; line-height: 28px; text-align: center; display: block; width: 30px; height: 30px; background: #ffffff; color: #111111; text-decoration: none;">Т</a>';
+            
+            div.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var text = prompt("Введіть текст для нанесення на карту:");
+                if (text && text.trim() !== "") {
+                    map.once('click', function(mapClickEvent) {
+                        var textIcon = L.divIcon({
+                            className: 'custom-text-label',
+                            html: '<div style="font-weight: bold; color: #000000; background: transparent; font-size: 15px; white-space: nowrap;">' + text + '</div>',
+                            iconSize: [120, 20],
+                            iconAnchor: [0, 0]
+                        });
+                        L.marker(mapClickEvent.latlng, {icon: textIcon}).addTo(map);
+                    });
+                }
+            };
+            return div;
+        };
+        textControl.addTo(map);
+    });
+    </script>
+    """
+    m.get_root().html.add_child(folium.Element(text_tool_js))
 
 # ------------------------------------------------------------------------------
-# 5. ІНТЕРФЕЙС STREAMLIT
+# 4. ІНТЕРФЕЙС STREAMLIT
 # ------------------------------------------------------------------------------
 
 st.set_page_config(layout="wide", page_title="Прогноз хімічної аварії")
 
-# Приховування службових елементів Streamlit у правому верхньому куті
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -403,12 +373,12 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("Аварійний прогноз масштабів хімічної аварії")
+st.title("🧪 Аварійний прогноз масштабів хімічної аварії")
 
 col_params, col_map = st.columns([1, 2])
 
 with col_params:
-    st.subheader("Вхідні дані хімічної аварії")
+    st.subheader("⚙️ Вхідні дані хімічної аварії")
 
     all_substances = sorted(list(set(list(TABLE_G_T1.keys()) + list(G_t2.keys()))))
     if not all_substances:
@@ -478,14 +448,19 @@ with col_params:
     st.subheader("📊 Результати розрахунку")
     st.info(
         f"**Глибина зони хімічного забруднення (Г): {g_res:.2f} км**\n\n"
-        f"**Площа зони хімічного забруднення (S): {s_res:.2f} км²**\n\n"
+        f"**Площа зони забруднення (S): {s_res:.2f} км²**\n\n"
         f"• Первинна хмара (Г₁): **{g1_res:.2f} км** (Kₜ₁ = {kt1_res:.2f})\n\n"
         f"• Вторинна хмара (Г₂): **{g2_res:.2f} км** (Kₜ₂ = {kt2_res:.2f})\n\n"
         f"• Радіус осередку аварії (Rₐ): **0.50 км**\n\n"
-        f"• Кут сектора хімічного забруднення (Ф): **{phi_res}°**"
+        f"• Кут сектора ураження (Ф): **{phi_res}°**"
     )
 
-    st.subheader("Збереження карти")
+    # Кнопка очищення збережених нарисованих фігур
+    if st.button("🗑️ Очистити мої малюнки"):
+        st.session_state["user_drawings"] = []
+        st.rerun()
+
+    st.subheader("💾 Збереження карти")
     
     m_export = folium.Map(
         location=[st.session_state["lat"], st.session_state["lon"]], 
@@ -493,6 +468,18 @@ with col_params:
         tiles=None
     )
     setup_map_base_and_tools(m_export)
+
+    # Відмальовуємо збережені малюнки користувача в експорт
+    for item in st.session_state["user_drawings"]:
+        folium.GeoJson(
+            item,
+            style_function=lambda x: {
+                "color": "#000000",
+                "weight": 2,
+                "fill": False,
+                "fillOpacity": 0,
+            }
+        ).add_to(m_export)
 
     folium.Circle(
         location=[st.session_state["lat"], st.session_state["lon"]],
@@ -549,6 +536,18 @@ with col_map:
     )
     setup_map_base_and_tools(m_display)
 
+    # Відмальовуємо раніше збережені фігури з session_state
+    for item in st.session_state["user_drawings"]:
+        folium.GeoJson(
+            item,
+            style_function=lambda x: {
+                "color": "#000000",
+                "weight": 2,
+                "fill": False,
+                "fillOpacity": 0,
+            }
+        ).add_to(m_display)
+
     folium.Circle(
         location=[current_lat, current_lon],
         radius=500,
@@ -566,13 +565,18 @@ with col_map:
         fill_color="orange",
         fill_opacity=0.35,
         weight=2,
-        popup=f"Глибина хімічного забруднення: {g_res:.2f} км, Площа хімічного забруднення: {s_res:.2f} км² (Ф = {phi_res}°)",
+        popup=f"Глибина: {g_res:.2f} км, Площа: {s_res:.2f} км² (Ф = {phi_res}°)",
     ).add_to(m_display)
 
     m_display.get_root().html.add_child(folium.Element(get_wind_widget_html(wind_deg, wind_v)))
 
     map_data = st_folium(m_display, width="100%", height=530, key="folium_map_display")
 
+    # Збереження нових нарисованих фігур у session_state
+    if map_data and map_data.get("all_drawings"):
+        st.session_state["user_drawings"] = map_data["all_drawings"]
+
+    # Обробка кліку по карті для зміни координат
     if map_data and map_data.get("last_clicked"):
         click_lat = round(map_data["last_clicked"]["lat"], 4)
         click_lon = round(map_data["last_clicked"]["lng"], 4)
