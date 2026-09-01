@@ -51,7 +51,7 @@ def interpolate_1d(val, points):
 
 def get_base_depth(substance, vert_st, q, wind_v):
     if substance not in TABLE_G_T1:
-        return 1.0
+        return 0.0
     sub_data = TABLE_G_T1[substance]
 
     if vert_st not in sub_data:
@@ -62,7 +62,7 @@ def get_base_depth(substance, vert_st, q, wind_v):
     q_keys = sorted(q_map.keys())
 
     if not q_keys:
-        return 1.0
+        return 0.0
 
     q_target_val = q_keys[0]
     for q_k in q_keys:
@@ -78,7 +78,7 @@ def get_base_depth(substance, vert_st, q, wind_v):
     v_keys = sorted(v_map.keys())
 
     if not v_keys:
-        return 1.0
+        return 0.0
 
     v_target_val = v_keys[0]
     for v_k in v_keys:
@@ -87,7 +87,7 @@ def get_base_depth(substance, vert_st, q, wind_v):
         else:
             break
 
-    v_target_key = v_map[v_target_val]  # Виправлено назву змінної
+    v_target_key = v_map[v_target_val]
     return float(v_dict[v_target_key])
 
 
@@ -130,8 +130,9 @@ def get_base_depth_gt2(substance, vert_st, q, wind_v):
         else:
             break
 
-    v_target_key = v_map[v_target_val]  # Виправлено назву змінної (було v_target_str = v_map[v_target_str])
+    v_target_key = v_map[v_target_val]
     return float(v_dict[v_target_key])
+
 
 def calculate_zone(substance, vert_st, q, wind_v, temp, is_closed, km_val):
     g1_base = get_base_depth(substance, vert_st, q, wind_v)
@@ -164,45 +165,54 @@ def calculate_zone(substance, vert_st, q, wind_v, temp, is_closed, km_val):
 
 def create_sector_geojson(lat, lon, radius_km, wind_deg, phi_deg):
     """
-    Побудова сектора за новою шкалою:
-    0°/360° — Північний, 90° — Західний, 180° — Південний, 270° — Східний.
+    Побудова сектора за виправленою метеорологічною шкалою переносу:
+    90°  — зі Сходу на Захід (вектор 180°)
+    180° — з Півдня на Північ (вектор 90°)
+    270° — з Заходу на Схід (вектор 0°)
+    0°/360° — з Півночі на Південь (вектор 270°)
     """
     r_m = radius_km * 1000.0
-    target_deg = wind_deg % 360.0
+    
+    # Перетворення напрямку звідки дме вітер у вектор переносу хмари
+    cloud_vector_deg = (270.0 - wind_deg) % 360.0
 
     if phi_deg >= 360.0:
         points = []
         num_pts = 60
         for i in range(num_pts + 1):
             angle = math.radians(i * (360.0 / num_pts))
-            d_lat = (r_m * math.cos(angle)) / 111111.0
-            d_lon = (r_m * math.sin(angle)) / (
+            d_lat = (r_m * math.sin(angle)) / 111111.0
+            d_lon = (r_m * math.cos(angle)) / (
                 111111.0 * math.cos(math.radians(lat))
             )
             points.append([lat + d_lat, lon + d_lon])
         return points
 
     half_phi = phi_deg / 2.0
-    start_angle = target_deg - half_phi
-    end_angle = target_deg + half_phi
+    start_angle = cloud_vector_deg - half_phi
+    end_angle = cloud_vector_deg + half_phi
 
     points = [[lat, lon]]
     num_pts = 30
     for i in range(num_pts + 1):
         ang_deg = start_angle + i * (end_angle - start_angle) / num_pts
         ang_rad = math.radians(ang_deg)
-        d_lat = (r_m * math.cos(ang_rad)) / 111111.0
-        d_lon = (r_m * math.sin(ang_rad)) / (
-            111111.0 * math.cos(math.radians(lat))
-        )
+        
+        # Двігаємося по колу: dx = R*cos(a), dy = R*sin(a)
+        d_lon = (r_m * math.cos(ang_rad)) / (111111.0 * math.cos(math.radians(lat)))
+        d_lat = (r_m * math.sin(ang_rad)) / 111111.0
+        
         points.append([lat + d_lat, lon + d_lon])
+        
     points.append([lat, lon])
     return points
 
 
 def get_wind_widget_html(wind_deg, wind_v):
-    """Формування метеовіджета у темному стилі із жовтою рамкою та стрілкою."""
+    """Формування метеовіджета зі стрілкою напрямку переносу."""
     wind_kmh = wind_v * 3.6
+    # Стрілка показує, куди дме вітер (перенос хмари)
+    arrow_rotation = (wind_deg + 180) % 360
     
     return f"""
     <div style="
@@ -225,7 +235,7 @@ def get_wind_widget_html(wind_deg, wind_v):
             line-height: 1; 
             margin-bottom: 4px;
             display: inline-block;
-            transform: rotate({wind_deg}deg);
+            transform: rotate({arrow_rotation}deg);
             color: #ffcc00;
         ">↓</div>
         <div style="font-size: 18px; font-weight: bold; color: #ffcc00; margin-bottom: 6px;">
@@ -256,8 +266,12 @@ col_params, col_map = st.columns([1, 2])
 with col_params:
     st.subheader("⚙️ Вхідні дані хімічної аварії")
 
-    substances_list = list(TABLE_G_T1.keys()) if TABLE_G_T1 else ["Аміак"]
-    substance = st.selectbox("Назва НХР", substances_list)
+    # 3. Об'єднання списку речовин (первинні + вторинні)
+    all_substances = sorted(list(set(list(TABLE_G_T1.keys()) + list(G_t2.keys()))))
+    if not all_substances:
+        all_substances = ["Аміак"]
+        
+    substance = st.selectbox("Назва НХР", all_substances)
 
     q_val = st.number_input(
         "Кількість НХР, т", min_value=0.1, max_value=10000.0, value=10.0, step=1.0
@@ -280,9 +294,9 @@ with col_params:
     )
 
     wind_deg = st.slider(
-        "Напрямок вітру (градуси)", 
+        "Напрямок вітру (звідки дме)", 
         0, 360, 90, 
-        help="90° — Західний, 180° — Південний, 270° — Східний, 0°/360° — Північний"
+        help="90° — Східний (рух на Захід), 180° — Південний (рух на Північ), 270° — Західний (рух на Схід), 0°/360° — Північний (рух на Південь)"
     )
     temp = st.slider("Температура повітря, °C", -20, 30, 20)
 
@@ -292,17 +306,33 @@ with col_params:
     is_closed = st.checkbox("Закрита ємність / піддон", value=False)
 
     # --------------------------------------------------------------------------
-    # 1. ВВЕДЕННЯ КООРДИНАТ (Спочатку фіксуємо координати)
+    # ВВЕДЕННЯ КООРДИНАТ З СИНХРОНІЗАЦІЄЮ
     # --------------------------------------------------------------------------
     st.subheader("📍 Координати об'єкта")
-    lat_val = st.number_input("Широта (Lat)", value=st.session_state["lat"], format="%.4f", key="input_lat")
-    lon_val = st.number_input("Довгота (Lon)", value=st.session_state["lon"], format="%.4f", key="input_lon")
 
-    st.session_state["lat"] = lat_val
-    st.session_state["lon"] = lon_val
+    def update_lat():
+        st.session_state["lat"] = st.session_state["input_lat"]
+
+    def update_lon():
+        st.session_state["lon"] = st.session_state["input_lon"]
+
+    lat_val = st.number_input(
+        "Широта (Lat)", 
+        value=st.session_state["lat"], 
+        format="%.4f", 
+        key="input_lat",
+        on_change=update_lat
+    )
+    lon_val = st.number_input(
+        "Довгота (Lon)", 
+        value=st.session_state["lon"], 
+        format="%.4f", 
+        key="input_lon",
+        on_change=update_lon
+    )
 
     # --------------------------------------------------------------------------
-    # 2. РОЗРАХУНОК ПРОГНОЗУ
+    # РОЗРАХУНОК ПРОГНОЗУ
     # --------------------------------------------------------------------------
     g_res, g1_res, g2_res, phi_res, kt1_res, kt2_res = calculate_zone(
         substance, vert_st, q_val, wind_v, temp, is_closed, km_val
@@ -361,9 +391,6 @@ with col_params:
     )
 
 with col_map:
-    # --------------------------------------------------------------------------
-    # 3. НАНЕСЕННЯ НА КАРТУ
-    # --------------------------------------------------------------------------
     st.markdown(
         f"""
     <div style="background-color: #f0f2f6; padding: 12px; border-radius: 8px; margin-bottom: 12px; border-left: 5px solid #ff4b4b;">
@@ -402,8 +429,16 @@ with col_map:
         icon=folium.Icon(color="red", icon="warning-sign")
     ).add_to(m_display)
 
-    # Додаємо метеовіджет
     m_display.get_root().html.add_child(folium.Element(get_wind_widget_html(wind_deg, wind_v)))
 
-    # Відображення без перезапису по кліку
-    st_folium(m_display, width="100%", height=530, key="folium_map_display")
+    # Обробка кліків по карті (на ПК та смартфонах)
+    map_data = st_folium(m_display, width="100%", height=530, key="folium_map_display")
+
+    if map_data and map_data.get("last_clicked"):
+        click_lat = round(map_data["last_clicked"]["lat"], 4)
+        click_lon = round(map_data["last_clicked"]["lng"], 4)
+        
+        if click_lat != st.session_state["lat"] or click_lon != st.session_state["lon"]:
+            st.session_state["lat"] = click_lat
+            st.session_state["lon"] = click_lon
+            st.rerun()
