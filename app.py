@@ -260,8 +260,8 @@ with col_map:
     st.markdown(
         f"""
     <div style="background-color: #f0f2f6; padding: 12px; border-radius: 8px; margin-bottom: 12px; border-left: 5px solid #ff4b4b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-        <h4 style="margin: 0; color: #1f2937;">Глибина: <span style="color: #d97706;">{g_res:.2f} км</span></h4>
-        <h4 style="margin: 0; color: #1f2937;">Площа: <span style="color: #d97706;">{s_res:.2f} км²</span></h4>
+        <h4 style="margin: 0; color: #1f2937;">Глибина прогнозованої зони хімічного забруднення: <span style="color: #d97706;">{g_res:.2f} км</span></h4>
+        <h4 style="margin: 0; color: #1f2937;">Площа прогнозованої зони хімічного забруднення: <span style="color: #d97706;">{s_res:.2f} км²</span></h4>
     </div>
     """,
         unsafe_allow_html=True,
