@@ -223,16 +223,16 @@ def create_sector_geojson(lat, lon, radius_km, wind_deg, phi_deg):
 
 
 def get_wind_widget_html(wind_deg, wind_v):
-    """Формування метеовіджета зі стрілкою напрямку переносу."""
+    """Формування метеовіджета з поворотом стрілки за годинниковою стрілкою.
+    Базовий символ: ↑ (вектор на 0°).
+    Кут wind_deg повертає стрілку за годинниковою стрілкою.
+    Задня частина стрілки відповідає напрямку звідки дме вітер.
+    """
     wind_kmh = wind_v * 3.6
     
-    # Визначення кута повороту для HTML (поворот символу ↓ за годинниковою стрілкою):
-    # 90°  (зі Сходу на Захід)   -> rotation = 270° (вліво)
-    # 180° (з Півдня на Північ) -> rotation = 180° (вгору)
-    # 270° (з Заходу на Схід)   -> rotation = 90°  (вправо)
-    # 0°/360° (з Півночі на Південь) -> rotation = 0° (вниз)
-    arrow_rotation = (360.0 - wind_deg) % 360.0
-    
+    # Поворот базової стрілки ↑ (0°) за годинниковою стрілкою на wind_deg
+    arrow_rotation = float(wind_deg) % 360.0
+
     return f"""
     <div style="
         position: fixed; 
@@ -256,7 +256,7 @@ def get_wind_widget_html(wind_deg, wind_v):
             display: inline-block;
             transform: rotate({arrow_rotation}deg);
             color: #ffcc00;
-        ">↓</div>
+        ">↑</div>
         <div style="font-size: 18px; font-weight: bold; color: #ffcc00; margin-bottom: 6px;">
             {int(wind_deg)}°
         </div>
@@ -270,8 +270,7 @@ def get_wind_widget_html(wind_deg, wind_v):
             <span style="color: #ffffff;">{wind_kmh:.1f}</span>
         </div>
     </div>
-    """# ------------------------------------------------------------------------------
-# 4. ІНТЕРФЕЙС STREAMLIT
+    """# 4. ІНТЕРФЕЙС STREAMLIT
 # ------------------------------------------------------------------------------
 
 st.set_page_config(layout="wide", page_title="Прогноз хімічної аварії")
