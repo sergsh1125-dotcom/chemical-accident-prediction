@@ -1,5 +1,6 @@
 import math
 import folium
+from folium.plugins import Draw
 import streamlit as st
 from streamlit_folium import st_folium
 
@@ -183,7 +184,6 @@ def calculate_zone(substance, vert_st, q, wind_v, temp, is_closed, km_val):
     else:
         phi = 70.0
 
-    # Розрахунок площі зони можливого хімічного забруднення S (км²)
     s_area = 8.72e-4 * (g_total ** 2) * phi
 
     return g_total, g1, g2, phi, kt1, kt2, s_area
@@ -267,6 +267,38 @@ def get_wind_widget_html(wind_deg, wind_v):
     </div>
     """
 
+
+def setup_map_layers_and_draw(m):
+    """Додавання супутникової карти, перемикача шарів та інструменту малювання/тексту."""
+    # 1. Спутникова карта (Esri World Imagery)
+    esri_satellite = folium.TileLayer(
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attr="Esri",
+        name="Супутник (Esri)",
+        overlay=False,
+        control=True
+    ).add_to(m)
+    
+    # 2. Перемикач шарів у правому верхньому кутку
+    folium.LayerControl(position="topright").add_to(m)
+
+    # 3. Кнопка малювання, аннотацій та підпису тексту на карті
+    draw = Draw(
+        export=True,
+        filename="annotations.geojson",
+        position="topleft",
+        draw_options={
+            "polyline": True,
+            "polygon": True,
+            "circle": True,
+            "rectangle": True,
+            "marker": True,
+            "circlemarker": False,
+        },
+        edit_options={"poly": {"allowIntersection": False}}
+    )
+    draw.add_to(m)
+
 # ------------------------------------------------------------------------------
 # 4. ІНТЕРФЕЙС STREAMLIT
 # ------------------------------------------------------------------------------
@@ -283,44 +315,45 @@ with col_params:
     all_substances = sorted(list(set(list(TABLE_G_T1.keys()) + list(G_t2.keys()))))
     if not all_substances:
         all_substances = ["Аміак"]
-        
-    substance = st.selectbox("Назва НХР", all_substances)
 
-    q_val = st.number_input(
-        "Кількість НХР, т", min_value=0.1, max_value=10000.0, value=10.0, step=1.0
-    )
-    vert_st = st.selectbox(
-        "Стійкість атмосфери", ["Інверсія", "Ізотермія", "Конвекція"]
-    )
+    # 2. КНОПКА "РОЗРАХУВАТИ" ДЛЯ ВІДПРАВКИ ФОРМИ
+    with st.form(key="calc_form"):
+        substance = st.selectbox("Назва НХР", all_substances)
 
-    if vert_st == "Ізотермія":
-        wind_options = [1.0, 2.0, 3.0, 4.0, 10.0]
-    else:
-        wind_options = [1.0, 2.0, 3.0, 4.0]
+        q_val = st.number_input(
+            "Кількість НХР, т", min_value=0.1, max_value=10000.0, value=10.0, step=1.0
+        )
+        vert_st = st.selectbox(
+            "Стійкість атмосфери", ["Інверсія", "Ізотермія", "Конвекція"]
+        )
 
-    default_wind_index = 1 if 2.0 in wind_options else 0
-    wind_v = st.selectbox(
-        "Швидкість вітру, м/с",
-        wind_options,
-        index=default_wind_index,
-        format_func=lambda x: f"{int(x) if float(x).is_integer() else x} м/с",
-    )
+        if vert_st == "Ізотермія":
+            wind_options = [1.0, 2.0, 3.0, 4.0, 10.0]
+        else:
+            wind_options = [1.0, 2.0, 3.0, 4.0]
 
-    wind_deg = st.slider(
-        "Напрямок вітру (звідки дме)", 
-        0, 360, 90, 
-        help="90° — Східний, 180° — Південний, 270° — Західний, 0°/360° — Північний"
-    )
-    temp = st.slider("Температура повітря, °C", -20, 30, 20)
+        default_wind_index = 1 if 2.0 in wind_options else 0
+        wind_v = st.selectbox(
+            "Швидкість вітру, м/с",
+            wind_options,
+            index=default_wind_index,
+            format_func=lambda x: f"{int(x) if float(x).is_integer() else x} м/с",
+        )
 
-    km_label = st.selectbox("Коефіцієнт місцевості (Км)", list(KM_OPTIONS.keys()))
-    km_val = KM_OPTIONS[km_label]
+        wind_deg = st.slider(
+            "Напрямок вітру (звідки дме)", 
+            0, 360, 90, 
+            help="90° — Східний, 180° — Південний, 270° — Західний, 0°/360° — Північний"
+        )
+        temp = st.slider("Температура повітря, °C", -20, 30, 20)
 
-    is_closed = st.checkbox("Закрита ємність / піддон", value=False)
+        km_label = st.selectbox("Коефіцієнт місцевості (Км)", list(KM_OPTIONS.keys()))
+        km_val = KM_OPTIONS[km_label]
 
-    # --------------------------------------------------------------------------
-    # ВВЕДЕННЯ КООРДИНАТ (ДВОСТОРОННЯ СИНХРОНІЗАЦІЯ)
-    # --------------------------------------------------------------------------
+        is_closed = st.checkbox("Закрита ємність / піддон", value=False)
+
+        submit_btn = st.form_submit_button("🚀 РОЗРАХУВАТИ", use_container_width=True)
+
     st.subheader("📍 Координати об'єкта")
 
     st.session_state["input_lat"] = st.session_state["lat"]
@@ -341,14 +374,11 @@ with col_params:
         on_change=update_from_input
     )
 
-    # --------------------------------------------------------------------------
-    # РОЗРАХУНОК ПРОГНОЗУ
-    # --------------------------------------------------------------------------
+    # Розрахунок
     g_res, g1_res, g2_res, phi_res, kt1_res, kt2_res, s_res = calculate_zone(
         substance, vert_st, q_val, wind_v, temp, is_closed, km_val
     )
 
-    # 1. Додано площу до блоку результатів розрахунку
     st.subheader("📊 Результати розрахунку")
     st.info(
         f"**Глибина зони хімічного забруднення (Г): {g_res:.2f} км**\n\n"
@@ -363,7 +393,8 @@ with col_params:
     st.subheader("💾 Збереження карти")
     
     m_export = folium.Map(location=[st.session_state["lat"], st.session_state["lon"]], zoom_start=11, tiles="OpenStreetMap")
-    
+    setup_map_layers_and_draw(m_export)
+
     folium.Circle(
         location=[st.session_state["lat"], st.session_state["lon"]],
         radius=500,
@@ -403,7 +434,6 @@ with col_params:
     )
 
 with col_map:
-    # 2. Додано площу до верхнього блоку над картою
     st.markdown(
         f"""
     <div style="background-color: #f0f2f6; padding: 12px; border-radius: 8px; margin-bottom: 12px; border-left: 5px solid #ff4b4b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
@@ -420,6 +450,7 @@ with col_map:
     current_lon = st.session_state["lon"]
 
     m_display = folium.Map(location=[current_lat, current_lon], zoom_start=11, tiles="OpenStreetMap")
+    setup_map_layers_and_draw(m_display)
 
     folium.Circle(
         location=[current_lat, current_lon],
