@@ -199,6 +199,14 @@ st.markdown("""
         color: #ffd700;
     }
 
+    /* Стиль для збільшеної назви застосунку (+2 пункти) */
+    .app-title {
+        color: #ffd700 !important;
+        font-size: 2.2rem !important;
+        font-weight: bold;
+        margin-bottom: 1.5rem;
+    }
+
     /* Усі тексти, заголовки, підписи — ЖОВТІ */
     h1, h2, h3, h4, h5, h6, label, p, span, div, .stMarkdown {
         color: #ffd700 !important;
@@ -227,30 +235,35 @@ st.markdown("""
         background-color: #1a1d24 !important;
     }
 
-    /* КНОПКА "РОЗРАХУВАТИ" ТА КНОПКИ В ФОРМАХ */
+    /* КНОПКА "РОЗРАХУВАТИ" ТА КНОПКИ В ФОРМАХ (Жовта кнопка, Чорний текст) */
     div.stButton > button, button[kind="secondaryFormSubmit"] {
         background-color: #ffcc00 !important;
-        color: #000000 !important;
-        font-weight: bold !important;
-        font-size: 17px !important; /* Збільшено на 1 пункт */
         border: 1px solid #ffd700 !important;
         border-radius: 5px !important;
         transition: 0.2s;
     }
 
+    /* Чорний колір тексту всередині кнопок */
+    div.stButton > button p, button[kind="secondaryFormSubmit"] p {
+        color: #000000 !important;
+        font-weight: bold !important;
+        font-size: 17px !important;
+    }
+
     div.stButton > button:hover, button[kind="secondaryFormSubmit"]:hover {
         background-color: #e6b800 !important;
-        color: #000000 !important;
         box-shadow: 0px 0px 8px #ffd700;
     }
 
     /* Стиль для кнопки завантаження */
     div[data-testid="stDownloadButton"] > button {
         background-color: #ffcc00 !important;
+        border: 1px solid #ffd700 !important;
+    }
+    div[data-testid="stDownloadButton"] > button p {
         color: #000000 !important;
         font-weight: bold !important;
         font-size: 15px !important;
-        border: 1px solid #ffd700 !important;
     }
 
     /* Чекбокси та слайдери */
@@ -265,8 +278,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("ПЛАТФОРМА ПІДТРИМКИ ЗАХОДІВ РЕАГУВАННЯ НА ХБРЯ ІНЦИДЕНТИ")
-st.subheader("Аварійне прогнозування масштабів хімічної аварії")
+# Збільшена назва застосунку
+st.markdown('<div class="app-title">Аварійне прогнозування масштабів хімічної аварії</div>', unsafe_allow_html=True)
 
 col_params, col_map = st.columns([1, 2])
 
