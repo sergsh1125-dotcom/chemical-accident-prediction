@@ -340,14 +340,13 @@ with col_params:
         wind_deg = st.slider("Напрямок вітру", 0, 360, 90)
         temp = st.slider("Температура повітря, °C", -20, 30, 20)
         
-        # ЗАМІНА Km НА ВИБІР КАРТИ МІСЦЕВОСТІ (Kp)
-       kp_keys = list(KP_OPTIONS.keys()) if KP_OPTIONS else ["Відкрита місцевість (Kp = 0.2)"]
-       kp_label = st.selectbox("Характеристика місцевості / ландшафту (Кр)", kp_keys)
-       kp_val = KP_OPTIONS.get(kp_label, 0.2)  # 0.2 — значення за замовчуванням, якщо ключ не знайдено
+        # Захищений вибір ландшафту (Kp)
+        kp_keys = list(KP_OPTIONS.keys()) if KP_OPTIONS else ["Відкрита місцевість (Kp = 0.2)"]
+        kp_label = st.selectbox("Характеристика місцевості / ландшафту (Кр)", kp_keys)
+        kp_val = KP_OPTIONS.get(kp_label, 0.2)
         
         is_closed = st.checkbox("Наявність піддону або обвалування", value=False)
         submit_btn = st.form_submit_button("РОЗРАХУВАТИ", use_container_width=True)
-
     st.subheader("Координати ХНО")
     
     st.session_state["input_lat"] = st.session_state["lat"]
