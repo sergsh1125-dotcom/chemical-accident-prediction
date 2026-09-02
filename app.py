@@ -159,12 +159,12 @@ def get_wind_widget_html(wind_deg, wind_v):
     wind_kmh = wind_v * 3.6
     arrow_rotation = float(wind_deg) % 360.0
     return f"""
-    <div style="position: fixed; bottom: 30px; left: 20px; z-index: 9999; background-color: #1e1e1e; border: 2px solid #ffcc00; border-radius: 12px; padding: 10px 14px; width: 110px; box-shadow: 0px 4px 10px rgba(0,0,0,0.5); font-family: Arial, sans-serif; color: #ffffff; text-align: center;">
-        <div style="font-size: 26px; line-height: 1; margin-bottom: 4px; display: inline-block; transform: rotate({arrow_rotation}deg); color: #ffcc00;">↓</div>
-        <div style="font-size: 18px; font-weight: bold; color: #ffcc00; margin-bottom: 6px;">{int(wind_deg)}°</div>
-        <div style="border-top: 1px dashed #ffcc00; margin-bottom: 6px;"></div>
-        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #ffcc00; font-weight: bold; margin-bottom: 2px;"><span>м/с:</span><span style="color: #ffffff;">{wind_v:.1f}</span></div>
-        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #ffcc00; font-weight: bold;"><span>км/г:</span><span style="color: #ffffff;">{wind_kmh:.1f}</span></div>
+    <div style="position: fixed; bottom: 30px; left: 20px; z-index: 9999; background-color: #0e0f12; border: 1.5px solid #ffd700; border-radius: 8px; padding: 10px 14px; width: 110px; box-shadow: 0px 4px 10px rgba(0,0,0,0.8); font-family: Arial, sans-serif; color: #ffd700; text-align: center;">
+        <div style="font-size: 26px; line-height: 1; margin-bottom: 4px; display: inline-block; transform: rotate({arrow_rotation}deg); color: #ffd700;">↓</div>
+        <div style="font-size: 18px; font-weight: bold; color: #ffd700; margin-bottom: 6px;">{int(wind_deg)}°</div>
+        <div style="border-top: 1px dashed #ffd700; margin-bottom: 6px;"></div>
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #ffd700; font-weight: bold; margin-bottom: 2px;"><span>м/с:</span><span style="color: #ffffff;">{wind_v:.1f}</span></div>
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #ffd700; font-weight: bold;"><span>км/г:</span><span style="color: #ffffff;">{wind_kmh:.1f}</span></div>
     </div>
     """
 
@@ -180,11 +180,93 @@ def setup_map_base(m):
     folium.LayerControl(position="topright", collapsed=False).add_to(m)
 
 # ------------------------------------------------------------------------------
-# 4. ІНТЕРФЕЙС STREAMLIT
+# 4. ІНТЕРФЕЙС STREAMLIT СТИЛІЗОВАНИЙ ПІД ПЛАТФОРМУ ХБРЯ
 # ------------------------------------------------------------------------------
 st.set_page_config(layout="wide", page_title="Прогноз хімічної аварії")
-st.markdown("""<style>#MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden;} .stAppHeader {display: none;}</style>""", unsafe_allow_html=True)
-st.title("Аварійне прогнозування масштабів хімічної аварії")
+
+# CSS-СТИЛІЗАЦІЯ ПІД ДИЗАЙН ПЛАТФОРМИ ХБРЯ
+st.markdown("""
+<style>
+    /* Приховуємо стандартні елементи Streamlit */
+    #MainMenu {visibility: hidden;} 
+    header {visibility: hidden;} 
+    footer {visibility: hidden;} 
+    .stAppHeader {display: none;}
+
+    /* Загальний темний фон додатка */
+    .stApp {
+        background-color: #0e0f12;
+        color: #ffd700;
+    }
+
+    /* Усі тексти, заголовки, підписи — ЖОВТІ */
+    h1, h2, h3, h4, h5, h6, label, p, span, div, .stMarkdown {
+        color: #ffd700 !important;
+    }
+
+    /* Стилізація рамок для контейнерів, форм та блоків */
+    [data-testid="stForm"], [data-testid="stMetric"], .stAlert {
+        border: 1.5px solid #ffd700 !important;
+        border-radius: 6px !important;
+        background-color: #14161d !important;
+    }
+
+    /* Поля введення (Selectbox, NumberInput, TextInput) з золотою окантовкою */
+    div[data-baseweb="select"] > div, 
+    div[data-baseweb="input"] > div, 
+    div[data-baseweb="base-input"] {
+        border: 1px solid #ffd700 !important;
+        background-color: #1a1d24 !important;
+        color: #ffd700 !important;
+        border-radius: 4px !important;
+    }
+
+    /* Текст усередині полів введення */
+    input, select, textarea {
+        color: #ffd700 !important;
+        background-color: #1a1d24 !important;
+    }
+
+    /* КНОПКА "РОЗРАХУВАТИ" ТА КНОПКИ В ФОРМАХ */
+    div.stButton > button, button[kind="secondaryFormSubmit"] {
+        background-color: #ffcc00 !important;
+        color: #000000 !important;
+        font-weight: bold !important;
+        font-size: 17px !important; /* Збільшено на 1 пункт */
+        border: 1px solid #ffd700 !important;
+        border-radius: 5px !important;
+        transition: 0.2s;
+    }
+
+    div.stButton > button:hover, button[kind="secondaryFormSubmit"]:hover {
+        background-color: #e6b800 !important;
+        color: #000000 !important;
+        box-shadow: 0px 0px 8px #ffd700;
+    }
+
+    /* Стиль для кнопки завантаження */
+    div[data-testid="stDownloadButton"] > button {
+        background-color: #ffcc00 !important;
+        color: #000000 !important;
+        font-weight: bold !important;
+        font-size: 15px !important;
+        border: 1px solid #ffd700 !important;
+    }
+
+    /* Чекбокси та слайдери */
+    span[data-baseweb="checkbox"] > div {
+        border-color: #ffd700 !important;
+    }
+
+    /* Розділювальна лінія */
+    hr {
+        border-color: #ffd700 !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+st.title("ПЛАТФОРМА ПІДТРИМКИ ЗАХОДІВ РЕАГУВАННЯ НА ХБРЯ ІНЦИДЕНТИ")
+st.subheader("Аварійне прогнозування масштабів хімічної аварії")
 
 col_params, col_map = st.columns([1, 2])
 
@@ -235,12 +317,12 @@ with col_params:
     m_export = folium.Map(location=[st.session_state["lat"], st.session_state["lon"]], zoom_start=11, tiles=None)
     setup_map_base(m_export)
     
-    # Додаємо тексти в експорт (виправлено DivIcon без зайвих параметрів)
+    # Додаємо тексти в експорт
     for txt_data in st.session_state["user_texts"]:
         folium.Marker(
             [txt_data["lat"], txt_data["lon"]],
             icon=folium.DivIcon(
-                html=f'<div style="color: #000000; font-weight: bold; font-size: 15px; background: transparent; white-space: nowrap;">{txt_data["text"]}</div>'
+                html=f'<div style="color: #ffd700; font-weight: bold; font-size: 15px; background: rgba(0,0,0,0.6); padding: 2px 4px; border: 1px solid #ffd700; border-radius: 3px; white-space: nowrap;">{txt_data["text"]}</div>'
             )
         ).add_to(m_export)
 
@@ -257,14 +339,15 @@ with col_params:
     )
 
 with col_map:
+    # Інформаційна панель над картою у стилі Платформи ХБРЯ
     st.markdown(
         f"""
-    <div style="background-color: #f0f2f6; padding: 6px 12px; border-radius: 8px; margin-bottom: 8px; border-left: 5px solid #ff4b4b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px; line-height: 1.2;">
-        <div style="font-size: 16px; font-weight: bold; color: #1f2937; margin: 0;">
-            Глибина прогнозованої зони хімічного забруднення: <span style="color: #d97706;">{g_res:.2f} км</span>
+    <div style="background-color: #14161d; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; border: 1.5px solid #ffd700; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px; line-height: 1.2;">
+        <div style="font-size: 15px; font-weight: bold; color: #ffd700; margin: 0;">
+            Глибина прогнозованої зони хімічного забруднення: <span style="color: #ffffff; font-size: 16px;">{g_res:.2f} км</span>
         </div>
-        <div style="font-size: 16px; font-weight: bold; color: #1f2937; margin: 0;">
-            Площа прогнозованої зони хімічного забруднення: <span style="color: #d97706;">{s_res:.2f} км²</span>
+        <div style="font-size: 15px; font-weight: bold; color: #ffd700; margin: 0;">
+            Площа прогнозованої зони хімічного забруднення: <span style="color: #ffffff; font-size: 16px;">{s_res:.2f} км²</span>
         </div>
     </div>
     """,
@@ -276,12 +359,12 @@ with col_map:
     m_display = folium.Map(location=[current_lat, current_lon], zoom_start=11, tiles=None)
     setup_map_base(m_display)
     
-    # Відмальовуємо тексти на екрані (виправлено DivIcon без зайвих параметрів)
+    # Відмальовуємо тексти на екрані
     for txt_data in st.session_state["user_texts"]:
         folium.Marker(
             [txt_data["lat"], txt_data["lon"]],
             icon=folium.DivIcon(
-                html=f'<div style="color: #000000; font-weight: bold; font-size: 15px; background: transparent; white-space: nowrap;">{txt_data["text"]}</div>'
+                html=f'<div style="color: #ffd700; font-weight: bold; font-size: 15px; background: rgba(0,0,0,0.7); padding: 2px 4px; border: 1px solid #ffd700; border-radius: 3px; white-space: nowrap;">{txt_data["text"]}</div>'
             )
         ).add_to(m_display)
     
@@ -296,7 +379,7 @@ with col_map:
     # --------------------------------------------------------------------------
     st.divider()
     st.subheader("Додавання тексту на карту")
-    st.markdown("1. **Переконайтесь, що галочка визначення координат кліком вимкнена (у лівому меню).\n2. **Клікніть мишкою** на карті там, де має бути текст.\n3. Введіть текст у поле нижче та натисніть 'Додати'.")
+    st.markdown("1. Переконайтесь, що галочка визначення координат кліком вимкнена (у лівому меню).\n2. **Клікніть мишкою** на карті там, де має бути текст.\n3. Введіть текст у поле нижче та натисніть 'Додати'.")
     
     if map_data and map_data.get("last_clicked"):
         c_lat = round(map_data["last_clicked"]["lat"], 4)
