@@ -12,6 +12,7 @@ TABLE_G_T1 = getattr(data_tables, "TABLE_G_T1", {})
 TABLE_K_T1 = getattr(data_tables, "TABLE_K_T1", {})
 G_t2 = getattr(data_tables, "G_t2", {})
 K_t2 = getattr(data_tables, "K_t2", {})
+TABLE_K_K = getattr(data_tables, "TABLE_K_K", {})
 KM_OPTIONS = getattr(
     data_tables,
     "KM_OPTIONS",
@@ -19,9 +20,7 @@ KM_OPTIONS = getattr(
         "Відкрита місцевість (Км = 1.0)": 1.0,
         "Міська забудова / ліс (Км = 0.5)": 0.5,
     },
-)
-
-# ------------------------------------------------------------------------------
+)# ------------------------------------------------------------------------------
 # 2. ІНІЦІАЛІЗАЦІЯ SESSION STATE
 # ------------------------------------------------------------------------------
 if "lat" not in st.session_state:
@@ -43,89 +42,137 @@ def update_from_input():
     st.session_state["lon"] = round(st.session_state["input_lon"], 4)
 
 # ------------------------------------------------------------------------------
-# 3. РОЗРАХУНКОВІ ФУНКЦІЇ
+# РОЗРАХУНКОВІ ФУНКЦІЇ
 # ------------------------------------------------------------------------------
 def interpolate_1d(val, points):
-    if not points or not isinstance(points, dict): return 1.0
-    try: sorted_keys = sorted([float(k) for k in points.keys()])
-    except (ValueError, TypeError): return 1.0
-    if not sorted_keys: return 1.0
+    if not points or not isinstance(points, dict):
+        return 1.0
+    try:
+        sorted_keys = sorted([float(k) for k in points.keys()])
+    except (ValueError, TypeError):
+        return 1.0
+    if not sorted_keys:
+        return 1.0
     val = float(val)
-    if val <= sorted_keys[0]: return float(points.get(sorted_keys[0], points.get(str(sorted_keys[0]), 1.0)))
-    if val >= sorted_keys[-1]: return float(points.get(sorted_keys[-1], points.get(str(sorted_keys[-1]), 1.0)))
+    if val <= sorted_keys[0]:
+        return float(points.get(sorted_keys[0], points.get(str(sorted_keys[0]), 1.0)))
+    if val >= sorted_keys[-1]:
+        return float(points.get(sorted_keys[-1], points.get(str(sorted_keys[-1]), 1.0)))
     for i in range(len(sorted_keys) - 1):
         x0, x1 = sorted_keys[i], sorted_keys[i + 1]
         if x0 <= val <= x1:
             y0 = float(points.get(x0, points.get(str(x0), 1.0)))
             y1 = float(points.get(x1, points.get(str(x1), 1.0)))
-            if x1 == x0: return y0
+            if x1 == x0:
+                return y0
             return y0 + (y1 - y0) * (val - x0) / (x1 - x0)
     return 1.0
 
-def get_base_depth(substance, vert_st, q, wind_v):
-    if substance not in TABLE_G_T1: return 0.0
+def get_base_depth_with_q(substance, vert_st, q, wind_v):
+    """Повертає (г1_base, q_table) для первинної хмари"""
+    if substance not in TABLE_G_T1:
+        return 0.0, 1.0
     sub_data = TABLE_G_T1[substance]
-    if vert_st not in sub_data: vert_st = list(sub_data.keys())[0]
+    if vert_st not in sub_data:
+        vert_st = list(sub_data.keys())[0]
     st_data = sub_data[vert_st]
     q_map = {float(k): k for k in st_data.keys()}
     q_keys = sorted(q_map.keys())
-    if not q_keys: return 0.0
-    q_target_val = q_keys[0]
-    for q_k in q_keys:
-        if q >= q_k: q_target_val = q_k
-        else: break
+    if not q_keys:
+        return 0.0, 1.0
+    
+    # Пошук найближчого табличного значення Qт (за найменшою абсолютною різницею)
+    q_target_val = min(q_keys, key=lambda x: abs(x - q))
     q_target_key = q_map[q_target_val]
+    
     v_dict = st_data[q_target_key]
     v_map = {float(k): k for k in v_dict.keys()}
     v_keys = sorted(v_map.keys())
-    if not v_keys: return 0.0
+    if not v_keys:
+        return 0.0, q_target_val
     v_target_val = v_keys[0]
     for v_k in v_keys:
-        if wind_v >= v_k: v_target_val = v_k
-        else: break
+        if wind_v >= v_k:
+            v_target_val = v_k
+        else:
+            break
     v_target_key = v_map[v_target_val]
-    return float(v_dict[v_target_key])
+    return float(v_dict[v_target_key]), float(q_target_val)
 
-def get_base_depth_gt2(substance, vert_st, q, wind_v):
-    if not G_t2 or substance not in G_t2: return 0.0
+def get_base_depth_gt2_with_q(substance, vert_st, q, wind_v):
+    """Повертає (г2_base, q_table) для вторинної хмари"""
+    if not G_t2 or substance not in G_t2:
+        return 0.0, 1.0
     sub_data = G_t2[substance]
     q_map = {float(k): k for k in sub_data.keys()}
     q_keys = sorted(q_map.keys())
-    if not q_keys: return 0.0
-    q_target_val = q_keys[0]
-    for q_k in q_keys:
-        if q >= q_k: q_target_val = q_k
-        else: break
+    if not q_keys:
+        return 0.0, 1.0
+    
+    # Пошук найближчого табличного значення Qт (за найменшою абсолютною різницею)
+    q_target_val = min(q_keys, key=lambda x: abs(x - q))
     q_target_key = q_map[q_target_val]
-    if vert_st not in sub_data[q_target_key]: return 0.0
+    
+    if vert_st not in sub_data[q_target_key]:
+        return 0.0, q_target_val
     v_dict = sub_data[q_target_key][vert_st]
     v_map = {float(k): k for k in v_dict.keys()}
     v_keys = sorted(v_map.keys())
-    if not v_keys: return 0.0
+    if not v_keys:
+        return 0.0, q_target_val
     v_target_val = v_keys[0]
     for v_k in v_keys:
-        if wind_v >= v_k: v_target_val = v_k
-        else: break
+        if wind_v >= v_k:
+            v_target_val = v_k
+        else:
+            break
     v_target_key = v_map[v_target_val]
-    return float(v_dict[v_target_key])
+    return float(v_dict[v_target_key]), float(q_target_val)
+
+def get_kk_factor(q_user, q_table, vert_st):
+    """Обчислює відношення Qз/Qт та знаходить Кк за масивом TABLE_K_K"""
+    if q_table <= 0:
+        return 1.0
+    ratio = q_user / q_table
+    if TABLE_K_K and vert_st in TABLE_K_K:
+        return interpolate_1d(ratio, TABLE_K_K[vert_st])
+    return 1.0
 
 def calculate_zone(substance, vert_st, q, wind_v, temp, is_closed, km_val):
-    g1_base = get_base_depth(substance, vert_st, q, wind_v)
+    # 1. Первинна хмара
+    g1_base, q1_table = get_base_depth_with_q(substance, vert_st, q, wind_v)
     kt1 = 1.0
     if TABLE_K_T1 and substance in TABLE_K_T1 and TABLE_K_T1[substance]:
         kt1 = interpolate_1d(temp, TABLE_K_T1[substance])
-    g1 = g1_base * kt1 * km_val
-    gt2_base = get_base_depth_gt2(substance, vert_st, q, wind_v)
+    kk1 = get_kk_factor(q, q1_table, vert_st)
+    
+    # Формула Г1
+    g1 = g1_base * kt1 * kk1 * km_val
+
+    # 2. Вторинна хмара
+    gt2_base, q2_table = get_base_depth_gt2_with_q(substance, vert_st, q, wind_v)
     kt2 = 1.0
     if K_t2 and substance in K_t2 and K_t2[substance]:
         kt2 = interpolate_1d(temp, K_t2[substance])
-    kk_val = 0.5 if is_closed else 1.0
-    g2 = gt2_base * kt2 * kk_val * km_val
+    kk2 = get_kk_factor(q, q2_table, vert_st)
+    
+    # Коефіцієнт піддону (Кп)
+    kp_val = 0.5 if is_closed else 1.0
+    
+    # Формула Г2
+    g2 = gt2_base * kt2 * kk2 * kp_val * km_val
+
+    # 3. Підсумкова глибина та площа
     r_a = 0.5
     g_total = max(g1, g2) + r_a
-    if vert_st == "Інверсія": phi = 40.0
-    elif vert_st == "Ізотермія": phi = 50.0
-    else: phi = 70.0
+    
+    if vert_st == "Інверсія":
+        phi = 40.0
+    elif vert_st == "Ізотермія":
+        phi = 50.0
+    else:
+        phi = 70.0
+        
     s_area = 8.72e-4 * (g_total ** 2) * phi
     return g_total, g1, g2, phi, kt1, kt2, s_area
 
@@ -316,21 +363,52 @@ with col_params:
         help="Вимкніть цю функцію перед нанесенням тексту на карту."
     )
 
-    g_res, g1_res, g2_res, phi_res, kt1_res, kt2_res, s_res = calculate_zone(substance, vert_st, q_val, wind_v, temp, is_closed, km_val)
+    # Оновлений виклики обчислень із витягуванням усіх коефіцієнтів
+    g1_base, q1_t = get_base_depth_with_q(substance, vert_st, q_val, wind_v)
+    gt2_base, q2_t = get_base_depth_gt2_with_q(substance, vert_st, q_val, wind_v)
+    kt1_res = interpolate_1d(temp, TABLE_K_T1.get(substance, {})) if (TABLE_K_T1 and substance in TABLE_K_T1) else 1.0
+    kt2_res = interpolate_1d(temp, K_t2.get(substance, {})) if (K_t2 and substance in K_t2) else 1.0
+    kk1_res = get_kk_factor(q_val, q1_t, vert_st)
+    kk2_res = get_kk_factor(q_val, q2_t, vert_st)
+    kp_val = 0.5 if is_closed else 1.0
+
+    g1_res = g1_base * kt1_res * kk1_res * km_val
+    g2_res = gt2_base * kt2_res * kk2_res * kp_val * km_val
+    r_a = 0.5
+    g_res = max(g1_res, g2_res) + r_a
+
+    if vert_st == "Інверсія": phi_res = 40.0
+    elif vert_st == "Ізотермія": phi_res = 50.0
+    else: phi_res = 70.0
+
+    s_res = 8.72e-4 * (g_res ** 2) * phi_res
 
     st.subheader("Результати аварійного прогнозування")
-    st.info(
-        f"**Глибина прогнозованої зони хімічного забруднення (Г): {g_res:.2f} км**\n\n"
-        f"**Площа прогнозованої зони хімічного забруднення (S): {s_res:.2f} км²**\n\n"
-        f"• Глибина розповсюдження первинної хмари (Г₁): {g1_res:.2f} км\n\n"
-        f"• Глибина розповсюдження вторинної хмари (Г₂): {g2_res:.2f} км"
-    )
-    
+    with st.container():
+        st.markdown("**1. Глибина розповсюдження первинної хмари ($Г_1$):**")
+        st.latex(r"Г_1 = Г_{\text{табл1}} \cdot K_{t1} \cdot K_k \cdot K_m")
+        st.latex(f"Г_1 = {g1_base:.2f} \\cdot {kt1_res:.2f} \\cdot {kk1_res:.2f} \\cdot {km_val:.2f} = \\mathbf{{{g1_res:.2f}}}\\text{{ км}}")
+
+        st.markdown("---")
+        st.markdown("**2. Глибина розповсюдження вторинної хмари ($Г_2$):**")
+        st.latex(r"Г_2 = Г_{\text{табл2}} \cdot K_{t2} \cdot K_k \cdot K_п \cdot K_m")
+        st.latex(f"Г_2 = {gt2_base:.2f} \\cdot {kt2_res:.2f} \\cdot {kk2_res:.2f} \\cdot {kp_val:.2f} \\cdot {km_val:.2f} = \\mathbf{{{g2_res:.2f}}}\\text{{ км}}")
+
+        st.markdown("---")
+        st.markdown("**3. Загальна глибина зони забруднення ($Г$):**")
+        st.latex(r"Г = \max(Г_1, Г_2) + R_a")
+        st.latex(f"Г = \\max({g1_res:.2f}, {g2_res:.2f}) + {r_a:.1f} = \\mathbf{{{g_res:.2f}}}\\text{{ км}}")
+
+        st.markdown("---")
+        st.markdown("**4. Площа прогнозованої зони хімічного забруднення ($S$):**")
+        st.latex(r"S = 8.72 \cdot 10^{-4} \cdot Г^2 \cdot \phi")
+        st.latex(f"S = 8.72 \\cdot 10^{{-4}} \\cdot ({g_res:.2f})^2 \\cdot {phi_res:.0f} = \\mathbf{{{s_res:.2f}}}\\text{{ км}}²")
+
     # Створення карти для експорту
     m_export = folium.Map(location=[st.session_state["lat"], st.session_state["lon"]], zoom_start=11, tiles=None)
     setup_map_base(m_export)
     
-    # Додаємо тексти в експорт (Чорний текст, прозора підкладка)
+    # Додаємо тексти в експорт
     for txt_data in st.session_state["user_texts"]:
         folium.Marker(
             [txt_data["lat"], txt_data["lon"]],
@@ -372,7 +450,7 @@ with col_map:
     m_display = folium.Map(location=[current_lat, current_lon], zoom_start=11, tiles=None)
     setup_map_base(m_display)
     
-    # Відмальовуємо тексти на екрані (Чорний текст, прозора підкладка)
+    # Відмальовуємо тексти на екрані
     for txt_data in st.session_state["user_texts"]:
         folium.Marker(
             [txt_data["lat"], txt_data["lon"]],
@@ -386,7 +464,6 @@ with col_map:
     m_display.get_root().html.add_child(folium.Element(get_wind_widget_html(wind_deg, wind_v)))
 
     map_data = st_folium(m_display, width="100%", height=530, key="main_map")
-
     # --------------------------------------------------------------------------
     # ПАНЕЛЬ НАНЕСЕННЯ ТЕКСТУ
     # --------------------------------------------------------------------------
