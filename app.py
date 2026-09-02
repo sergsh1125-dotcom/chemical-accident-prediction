@@ -330,12 +330,12 @@ with col_params:
     m_export = folium.Map(location=[st.session_state["lat"], st.session_state["lon"]], zoom_start=11, tiles=None)
     setup_map_base(m_export)
     
-    # Додаємо тексти в експорт
+    # Додаємо тексти в експорт (Чорний текст, прозора підкладка)
     for txt_data in st.session_state["user_texts"]:
         folium.Marker(
             [txt_data["lat"], txt_data["lon"]],
             icon=folium.DivIcon(
-                html=f'<div style="color: #ffd700; font-weight: bold; font-size: 15px; background: rgba(0,0,0,0.6); padding: 2px 4px; border: 1px solid #ffd700; border-radius: 3px; white-space: nowrap;">{txt_data["text"]}</div>'
+                html=f'<div style="color: #000000; font-weight: bold; font-size: 15px; background: transparent; padding: 0px; border: none; white-space: nowrap;">{txt_data["text"]}</div>'
             )
         ).add_to(m_export)
 
@@ -372,12 +372,12 @@ with col_map:
     m_display = folium.Map(location=[current_lat, current_lon], zoom_start=11, tiles=None)
     setup_map_base(m_display)
     
-    # Відмальовуємо тексти на екрані
+    # Відмальовуємо тексти на екрані (Чорний текст, прозора підкладка)
     for txt_data in st.session_state["user_texts"]:
         folium.Marker(
             [txt_data["lat"], txt_data["lon"]],
             icon=folium.DivIcon(
-                html=f'<div style="color: #ffd700; font-weight: bold; font-size: 15px; background: rgba(0,0,0,0.7); padding: 2px 4px; border: 1px solid #ffd700; border-radius: 3px; white-space: nowrap;">{txt_data["text"]}</div>'
+                html=f'<div style="color: #000000; font-weight: bold; font-size: 15px; background: transparent; padding: 0px; border: none; white-space: nowrap;">{txt_data["text"]}</div>'
             )
         ).add_to(m_display)
     
