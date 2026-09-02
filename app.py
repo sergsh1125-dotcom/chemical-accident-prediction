@@ -341,8 +341,9 @@ with col_params:
         temp = st.slider("Температура повітря, °C", -20, 30, 20)
         
         # ЗАМІНА Km НА ВИБІР КАРТИ МІСЦЕВОСТІ (Kp)
-        kp_label = st.selectbox("Характеристика місцевості / ландшафту (Кр)", list(KP_OPTIONS.keys()))
-        kp_val = KP_OPTIONS[kp_label]
+       kp_keys = list(KP_OPTIONS.keys()) if KP_OPTIONS else ["Відкрита місцевість (Kp = 0.2)"]
+       kp_label = st.selectbox("Характеристика місцевості / ландшафту (Кр)", kp_keys)
+       kp_val = KP_OPTIONS.get(kp_label, 0.2)  # 0.2 — значення за замовчуванням, якщо ключ не знайдено
         
         is_closed = st.checkbox("Наявність піддону або обвалування", value=False)
         submit_btn = st.form_submit_button("РОЗРАХУВАТИ", use_container_width=True)
