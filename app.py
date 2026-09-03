@@ -378,7 +378,8 @@ st.markdown("""
         border-color: #ffd700 !important;
     }
 </style>
-""", unsafe_allow_html=True)    results_html = f"""
+""", unsafe_allow_html=True)    
+results_html = f"""
     <div class="compact-container">
 
     **1. Глибина розповсюдження первинної хмари ($Г_1$):**
