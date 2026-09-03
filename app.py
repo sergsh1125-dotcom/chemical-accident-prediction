@@ -231,7 +231,7 @@ def setup_map_base(m):
 # ------------------------------------------------------------------------------
 st.set_page_config(layout="wide", page_title="Прогноз хімічної аварії")
 
-# CSS-СТИЛІЗАЦІЯ ПІД ДИЗАЙН ПЛАТФОРМИ ХБРЯ
+# CSS-СТИЛІЗАЦІЯ ПІД ДИЗАЙН ПЛАТФОРМИ ХБРЯ (БІЛІ ВІКОНЦЯ / ЧОРНИЙ ТЕКСТ)
 st.markdown("""
 <style>
     /* Приховуємо стандартні елементи Streamlit */
@@ -254,72 +254,75 @@ st.markdown("""
         margin-bottom: 1.5rem;
     }
 
-    /* Усі тексти та заголовки — ЖОВТІ */
+    /* Основні текстові підписи та заголовки сторінки — ЖОВТІ */
     h1, h2, h3, h4, h5, h6, label, p, span, div, .stMarkdown {
-        color: #ffd700 !important;
+        color: #ffd700;
     }
 
-    /* Стилізація рамок для контейнерів та форм */
+    /* Рамки та фон для блоків і форм */
     [data-testid="stForm"], [data-testid="stMetric"], .stAlert {
         border: 1.5px solid #ffd700 !important;
         border-radius: 6px !important;
         background-color: #14161d !important;
     }
 
-    /* Поля текстового введення (числа, координати) */
+    /* ========================================================================= */
+    /* УСІ ВІКОНЦЯ ВВЕДЕННЯ ТА ВИПАДАЮЧІ СПИСКИ (БІЛИЙ ФОН, ЧОРНИЙ ШРИФТ)       */
+    /* ========================================================================= */
+
+    /* 1. Усі поля введення (selectbox, number_input, text_input) */
+    div[data-baseweb="select"] > div, 
     div[data-baseweb="input"] > div, 
-    div[data-baseweb="base-input"] {
-        border: 1px solid #ffd700 !important;
-        background-color: #1a1d24 !important;
-        color: #ffd700 !important;
-        border-radius: 4px !important;
-    }
-
-    input, textarea {
-        color: #ffd700 !important;
-        background-color: #1a1d24 !important;
-    }
-
-    /* ========================================================================= */
-    /* ВСТАВЛЕНИЙ БЛОК: ВИПАДАЮЧІ СПИСКИ (БІЛИЙ ФОН / ЧОРНИЙ ТЕКСТ)              */
-    /* ========================================================================= */
-    
-    /* Закритий selectbox (початковий стан) */
-    div[data-baseweb="select"] > div {
+    div[data-baseweb="base-input"],
+    input, textarea, select {
         background-color: #ffffff !important;
+        color: #000000 !important;
         border: 1.5px solid #ffd700 !important;
         border-radius: 4px !important;
     }
 
-    /* Текст всередині вибраного елемента */
-    div[data-baseweb="select"] * {
+    /* 2. Примусовий чорний колір для всього тексту всередині полів введення */
+    div[data-baseweb="select"] *, 
+    div[data-baseweb="input"] *, 
+    div[data-baseweb="base-input"] *,
+    input, textarea, select, option {
         color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important; /* Фікс для iOS Safari */
         font-weight: 500 !important;
     }
 
-    /* Нативні випадаючі списки на смартфонах (option) */
-    select, select option {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-    }
-
-    /* Меню списку, що випадає (BaseWeb / Popover) */
-    ul[role="listbox"], [data-baseweb="menu"], [data-baseweb="popover"] {
+    /* 3. Випадаюче меню зі списком варіантів (Popover / Dropdown) */
+    ul[role="listbox"], 
+    [data-baseweb="menu"], 
+    [data-baseweb="popover"],
+    [data-baseweb="popover"] > div {
         background-color: #ffffff !important;
         border: 1px solid #cccccc !important;
     }
 
-    /* Елементи випадаючого списку */
-    li[role="option"], [data-baseweb="menu"] li {
+    /* 4. Елементи випадаючого списку (рядки) */
+    li[role="option"], 
+    [data-baseweb="menu"] li,
+    [data-baseweb="menu"] div {
         background-color: #ffffff !important;
         color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
     }
 
-    /* Пункт списку при наведенні або виборі */
-    li[role="option"]:hover, [aria-selected="true"] {
+    /* 5. Виділення пункту при наведенні чи виборі */
+    li[role="option"]:hover, 
+    [aria-selected="true"],
+    [data-baseweb="menu"] li:hover {
         background-color: #e0e0e0 !important;
         color: #000000 !important;
     }
+
+    /* 6. Іконки стрілок та кнопок очищення у віконцях */
+    div[data-baseweb="select"] svg,
+    div[data-baseweb="input"] svg {
+        fill: #000000 !important;
+    }
+
     /* ========================================================================= */
 
     /* КНОПКИ (Жовта кнопка, Чорний текст) */
@@ -359,8 +362,7 @@ st.markdown("""
         border-color: #ffd700 !important;
     }
 </style>
-""", unsafe_allow_html=True)
-st.markdown('<div class="app-title">Аварійне прогнозування масштабів хімічної аварії</div>', unsafe_allow_html=True)
+""", unsafe_allow_html=True)st.markdown('<div class="app-title">Аварійне прогнозування масштабів хімічної аварії</div>', unsafe_allow_html=True)
 
 col_params, col_map = st.columns([1, 2])
 
