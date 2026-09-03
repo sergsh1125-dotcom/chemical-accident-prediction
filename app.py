@@ -246,7 +246,7 @@ st.markdown("""
         color: #ffd700;
     }
 
-    /* Стиль для збільшеної назви застосунку (+2 пункти) */
+    /* Назва застосунку */
     .app-title {
         color: #ffd700 !important;
         font-size: 2.2rem !important;
@@ -254,20 +254,19 @@ st.markdown("""
         margin-bottom: 1.5rem;
     }
 
-    /* Усі тексти, заголовки, підписи — ЖОВТІ */
+    /* Усі тексти та заголовки — ЖОВТІ */
     h1, h2, h3, h4, h5, h6, label, p, span, div, .stMarkdown {
         color: #ffd700 !important;
     }
 
-    /* Стилізація рамок для контейнерів, форм та блоків */
+    /* Стилізація рамок для контейнерів та форм */
     [data-testid="stForm"], [data-testid="stMetric"], .stAlert {
         border: 1.5px solid #ffd700 !important;
         border-radius: 6px !important;
         background-color: #14161d !important;
     }
 
-    /* Поля введення з золотою окантовкою */
-    div[data-baseweb="select"] > div, 
+    /* Поля текстового введення (числа, координати) */
     div[data-baseweb="input"] > div, 
     div[data-baseweb="base-input"] {
         border: 1px solid #ffd700 !important;
@@ -276,11 +275,52 @@ st.markdown("""
         border-radius: 4px !important;
     }
 
-    /* Текст усередині полів введення */
-    input, select, textarea {
+    input, textarea {
         color: #ffd700 !important;
         background-color: #1a1d24 !important;
     }
+
+    /* ========================================================================= */
+    /* ВСТАВЛЕНИЙ БЛОК: ВИПАДАЮЧІ СПИСКИ (БІЛИЙ ФОН / ЧОРНИЙ ТЕКСТ)              */
+    /* ========================================================================= */
+    
+    /* Закритий selectbox (початковий стан) */
+    div[data-baseweb="select"] > div {
+        background-color: #ffffff !important;
+        border: 1.5px solid #ffd700 !important;
+        border-radius: 4px !important;
+    }
+
+    /* Текст всередині вибраного елемента */
+    div[data-baseweb="select"] * {
+        color: #000000 !important;
+        font-weight: 500 !important;
+    }
+
+    /* Нативні випадаючі списки на смартфонах (option) */
+    select, select option {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+
+    /* Меню списку, що випадає (BaseWeb / Popover) */
+    ul[role="listbox"], [data-baseweb="menu"], [data-baseweb="popover"] {
+        background-color: #ffffff !important;
+        border: 1px solid #cccccc !important;
+    }
+
+    /* Елементи випадаючого списку */
+    li[role="option"], [data-baseweb="menu"] li {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+
+    /* Пункт списку при наведенні або виборі */
+    li[role="option"]:hover, [aria-selected="true"] {
+        background-color: #e0e0e0 !important;
+        color: #000000 !important;
+    }
+    /* ========================================================================= */
 
     /* КНОПКИ (Жовта кнопка, Чорний текст) */
     div.stButton > button, button[kind="secondaryFormSubmit"] {
@@ -320,7 +360,6 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-
 st.markdown('<div class="app-title">Аварійне прогнозування масштабів хімічної аварії</div>', unsafe_allow_html=True)
 
 col_params, col_map = st.columns([1, 2])
