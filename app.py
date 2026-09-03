@@ -361,7 +361,7 @@ with col_params:
         help="Вимкніть цю функцію перед нанесенням тексту на карту."
     )
 
-   # --------------------------------------------------------------------------
+  # --------------------------------------------------------------------------
     # РОЗРАХУНКИ ТА ВИВЕДЕННЯ РЕЗУЛЬТАТІВ
     # --------------------------------------------------------------------------
     km_val = get_km_factor(kp_val, vert_st)
@@ -387,53 +387,58 @@ with col_params:
 
     st.subheader("Результати аварійного прогнозування")
     
-    # CSS-стиль для мінімізації міжрядкових інтервалів у блоці формул
+    # Агресивний CSS для стиснення відступів між KaTeX та елементами
     st.markdown("""
     <style>
-        .compact-results p {
-            margin-top: 2px !important;
-            margin-bottom: 0px !important;
-            padding-top: 0px !important;
-            padding-bottom: 0px !important;
-            line-height: 1.1 !important;
+        .compact-container {
+            margin-top: -10px !important;
+            margin-bottom: -10px !important;
         }
-        .compact-results [data-testid="stLatex"] {
-            margin-top: -8px !important;
-            margin-bottom: -4px !important;
-            padding-top: 0px !important;
-            padding-bottom: 0px !important;
+        .compact-container p {
+            margin: 2px 0px !important;
+            padding: 0px !important;
+            line-height: 1.2 !important;
         }
-        .compact-results hr {
-            margin-top: 4px !important;
-            margin-bottom: 4px !important;
+        .compact-container .katex-display {
+            margin: 2px 0px !important;
+            padding: 0px !important;
+        }
+        .compact-container hr {
+            margin: 4px 0px !important;
+            border-color: #ffd700 !important;
         }
     </style>
     """, unsafe_allow_html=True)
 
-    with st.container():
-        st.markdown('<div class="compact-results">', unsafe_allow_html=True)
-        
-        st.markdown("**1. Глибина розповсюдження первинної хмари ($Г_1$):**")
-        st.latex(r"Г_1 = Г_{\text{табл1}} \cdot K_{t1} \cdot K_k \cdot K_m")
-        st.latex(f"Г_1 = {g1_base:.2f} \\cdot {kt1_res:.2f} \\cdot {kk1_res:.2f} \\cdot {km_val:.2f} = \\mathbf{{{g1_res:.2f}}}\\text{{ км}}")
+    results_html = f"""
+    <div class="compact-container">
 
-        st.markdown("---")
-        st.markdown("**2. Глибина розповсюдження вторинної хмари ($Г_2$):**")
-        st.latex(r"Г_2 = Г_{\text{табл2}} \cdot K_{t2} \cdot K_k \cdot K_п \cdot K_m")
-        st.latex(f"Г_2 = {gt2_base:.2f} \\cdot {kt2_res:.2f} \\cdot {kk2_res:.2f} \\cdot {kp_poddon:.2f} \\cdot {km_val:.2f} = \\mathbf{{{g2_res:.2f}}}\\text{{ км}}")
+    **1. Глибина розповсюдження первинної хмари ($Г_1$):**
+    $$Г_1 = Г_{{\\text{{табл1}}}} \\cdot K_{{t1}} \\cdot K_k \\cdot K_m$$
+    $$Г_1 = {g1_base:.2f} \\cdot {kt1_res:.2f} \\cdot {kk1_res:.2f} \\cdot {km_val:.2f} = \\mathbf{{{g1_res:.2f}}}\\text{{ км}}$$
 
-        st.markdown("---")
-        st.markdown("**3. Загальна глибина зони забруднення ($Г$):**")
-        st.latex(r"Г = \max(Г_1, Г_2) + R_a")
-        st.latex(f"Г = \\max({g1_res:.2f}, {g2_res:.2f}) + {r_a:.1f} = \\mathbf{{{g_res:.2f}}}\\text{{ км}}")
+    ---
 
-        st.markdown("---")
-        st.markdown("**4. Площа прогнозованої зони хімічного забруднення ($S$):**")
-        st.latex(r"S = 8.72 \cdot 10^{-4} \cdot Г^2 \cdot \phi")
-        st.latex(f"S = 8.72 \\cdot 10^{{-4}} \\cdot ({g_res:.2f})^2 \\cdot {phi_res:.0f} = \\mathbf{{{s_res:.2f}}}\\text{{ км}}²")
+    **2. Глибина розповсюдження вторинної хмари ($Г_2$):**
+    $$Г_2 = Г_{{\\text{{табл2}}}} \\cdot K_{{t2}} \\cdot K_k \\cdot K_п \\cdot K_m$$
+    $$Г_2 = {gt2_base:.2f} \\cdot {kt2_res:.2f} \\cdot {kk2_res:.2f} \\cdot {kp_poddon:.2f} \\cdot {km_val:.2f} = \\mathbf{{{g2_res:.2f}}}\\text{{ км}}$$
 
-        st.markdown('</div>', unsafe_allow_html=True)
-    # Створення карти для експорту
+    ---
+
+    **3. Загальна глибина зони забруднення ($Г$):**
+    $$Г = \\max(Г_1, Г_2) + R_a$$
+    $$Г = \\max({g1_res:.2f}, {g2_res:.2f}) + {r_a:.1f} = \\mathbf{{{g_res:.2f}}}\\text{{ км}}$$
+
+    ---
+
+    **4. Площа прогнозованої зони хімічного забруднення ($S$):**
+    $$S = 8.72 \\cdot 10^{{-4}} \\cdot Г^2 \\cdot \\phi$$
+    $$S = 8.72 \\cdot 10^{{-4}} \\cdot ({g_res:.2f})^2 \\cdot {phi_res:.0f} = \\mathbf{{{s_res:.2f}}}\\text{{ км}}²$$
+
+    </div>
+    """
+    
+    st.markdown(results_html, unsafe_allow_html=True)    # Створення карти для експорту
     m_export = folium.Map(location=[st.session_state["lat"], st.session_state["lon"]], zoom_start=11, tiles=None)
     setup_map_base(m_export)
     
