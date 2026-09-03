@@ -231,7 +231,7 @@ def setup_map_base(m):
 # ------------------------------------------------------------------------------
 st.set_page_config(layout="wide", page_title="Прогноз хімічної аварії")
 
-# CSS-СТИЛІЗАЦІЯ ПІД ДИЗАЙН ПЛАТФОРМИ ХБРЯ (БІЛІ ВІКОНЦЯ / ЧОРНИЙ ТЕКСТ)
+# CSS-СТИЛІЗАЦІЯ ПІД ДИЗАЙН ПЛАТФОРМИ ХБРЯ
 st.markdown("""
 <style>
     /* Приховуємо стандартні елементи Streamlit */
@@ -254,9 +254,9 @@ st.markdown("""
         margin-bottom: 1.5rem;
     }
 
-    /* Основні текстові підписи та заголовки сторінки — ЖОВТІ */
-    h1, h2, h3, h4, h5, h6, label, p, span, div, .stMarkdown {
-        color: #ffd700;
+    /* ОСНОВНІ ЗАГОЛОВКИ ТА ПІДПИСИ ДО ПОЛІВ — ЖОВТІ */
+    h1, h2, h3, h4, h5, h6, label, p, span, .stMarkdown {
+        color: #ffd700 !important;
     }
 
     /* Рамки та фон для блоків і форм */
@@ -267,60 +267,76 @@ st.markdown("""
     }
 
     /* ========================================================================= */
-    /* УСІ ВІКОНЦЯ ВВЕДЕННЯ ТА ВИПАДАЮЧІ СПИСКИ (БІЛИЙ ФОН, ЧОРНИЙ ШРИФТ)       */
+    /* ПОВНЕ ПЕРЕВИЗНАЧЕННЯ ВІКОНЕЦЬ ВВЕДЕННЯ ТА ВИПАДАЮЧИХ СПИСКІВ              */
     /* ========================================================================= */
 
-    /* 1. Усі поля введення (selectbox, number_input, text_input) */
+    /* 1. БІЛИЙ ФОН ДЛЯ ВСІХ ПОЛІВ ВВЕДЕННЯ */
     div[data-baseweb="select"] > div, 
     div[data-baseweb="input"] > div, 
     div[data-baseweb="base-input"],
     input, textarea, select {
         background-color: #ffffff !important;
-        color: #000000 !important;
         border: 1.5px solid #ffd700 !important;
         border-radius: 4px !important;
     }
 
-    /* 2. Примусовий чорний колір для всього тексту всередині полів введення */
-    div[data-baseweb="select"] *, 
-    div[data-baseweb="input"] *, 
-    div[data-baseweb="base-input"] *,
-    input, textarea, select, option {
+    /* 2. ЧОРНИЙ ТЕКСТ УСЕРЕДИНІ ВІКОНЕЦЬ (ФІКС ЖОВТОГО ШРИФТУ) */
+    div[data-baseweb="select"] div,
+    div[data-baseweb="select"] span,
+    div[data-baseweb="select"] p,
+    div[data-baseweb="input"] input,
+    div[data-baseweb="base-input"] input,
+    input, textarea, select {
         color: #000000 !important;
-        -webkit-text-fill-color: #000000 !important; /* Фікс для iOS Safari */
-        font-weight: 500 !important;
+        -webkit-text-fill-color: #000000 !important;
+        font-weight: bold !important;
     }
 
-    /* 3. Випадаюче меню зі списком варіантів (Popover / Dropdown) */
-    ul[role="listbox"], 
-    [data-baseweb="menu"], 
+    /* 3. ПОПОВЕР ТА СПИСОК, ЩО ВИПАДАЄ ПРИ КЛІКУ (БІЛИЙ ФОН) */
     [data-baseweb="popover"],
-    [data-baseweb="popover"] > div {
+    [data-baseweb="popover"] > div,
+    [data-baseweb="menu"],
+    ul[role="listbox"] {
         background-color: #ffffff !important;
         border: 1px solid #cccccc !important;
     }
 
-    /* 4. Елементи випадаючого списку (рядки) */
-    li[role="option"], 
+    /* 4. ЧОРНИЙ ТЕКСТ ДЛЯ ВСІХ ПУНКТІВ СПИСКУ В МЕНЮ */
+    [data-baseweb="popover"] li,
+    [data-baseweb="popover"] li *,
     [data-baseweb="menu"] li,
-    [data-baseweb="menu"] div {
+    [data-baseweb="menu"] li *,
+    ul[role="listbox"] li,
+    ul[role="listbox"] li * {
         background-color: #ffffff !important;
         color: #000000 !important;
         -webkit-text-fill-color: #000000 !important;
     }
 
-    /* 5. Виділення пункту при наведенні чи виборі */
-    li[role="option"]:hover, 
-    [aria-selected="true"],
-    [data-baseweb="menu"] li:hover {
+    /* 5. ПІДСВІЧУВАННЯ ПУНКТУ ПРИ НАВЕДЕННІ ВІДКУРСОРУ / ПАЛЬЦЯ */
+    [data-baseweb="popover"] li:hover,
+    [data-baseweb="popover"] li:hover *,
+    ul[role="listbox"] li[aria-selected="true"],
+    ul[role="listbox"] li[aria-selected="true"] * {
         background-color: #e0e0e0 !important;
         color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
     }
 
-    /* 6. Іконки стрілок та кнопок очищення у віконцях */
+    /* 6. Нативні елементи select на мобільних */
+    select option {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
+    }
+
+    /* 7. Чорні стрілочки випадаючих списків та плюси/мінуси у числах */
     div[data-baseweb="select"] svg,
-    div[data-baseweb="input"] svg {
+    div[data-baseweb="input"] svg,
+    button[title="Decrease"],
+    button[title="Increase"] {
         fill: #000000 !important;
+        color: #000000 !important;
     }
 
     /* ========================================================================= */
@@ -362,97 +378,7 @@ st.markdown("""
         border-color: #ffd700 !important;
     }
 </style>
-""", unsafe_allow_html=True)
-st.markdown('<div class="app-title">Аварійне прогнозування масштабів хімічної аварії</div>', unsafe_allow_html=True)
-
-col_params, col_map = st.columns([1, 2])
-
-with col_params:
-    st.subheader("Вхідна інформація")
-    all_substances = sorted(list(set(list(TABLE_G_T1.keys()) + list(G_t2.keys()))))
-    if not all_substances: all_substances = ["Аміак"]
-
-    with st.form(key="calc_form"):
-        substance = st.selectbox("Назва речовини", all_substances)
-        q_val = st.number_input("Кількість речовини, т", min_value=0.1, max_value=10000.0, value=10.0, step=1.0)
-        vert_st = st.selectbox("Стійкість атмосфери", ["Інверсія", "Ізотермія", "Конвекція"])
-        wind_options = [1.0, 2.0, 3.0, 4.0, 10.0] if vert_st == "Ізотермія" else [1.0, 2.0, 3.0, 4.0]
-        default_wind_index = 1 if 2.0 in wind_options else 0
-        wind_v = st.selectbox("Швидкість вітру, м/с", wind_options, index=default_wind_index, format_func=lambda x: f"{int(x) if float(x).is_integer() else x} м/с")
-        wind_deg = st.slider("Напрямок вітру", 0, 360, 90)
-        temp = st.slider("Температура повітря, °C", -20, 30, 20)
-        
-        # Захищений вибір ландшафту (Kp)
-        kp_keys = list(KP_OPTIONS.keys()) if KP_OPTIONS else ["Відкрита місцевість (Kp = 0.2)"]
-        kp_label = st.selectbox("Характеристика місцевості / ландшафту (Кр)", kp_keys)
-        kp_val = KP_OPTIONS.get(kp_label, 0.2)
-        
-        is_closed = st.checkbox("Наявність піддону або обвалування", value=False)
-        submit_btn = st.form_submit_button("РОЗРАХУВАТИ", use_container_width=True)
-    st.subheader("Координати ХНО")
-    
-    st.session_state["input_lat"] = st.session_state["lat"]
-    st.session_state["input_lon"] = st.session_state["lon"]
-
-    lat_val = st.number_input("Широта (Lat)", value=st.session_state["input_lat"], format="%.4f", key="input_lat", on_change=update_from_input)
-    lon_val = st.number_input("Довгота (Lon)", value=st.session_state["input_lon"], format="%.4f", key="input_lon", on_change=update_from_input)
-
-    allow_click_move = st.checkbox(
-        "🖱️ Увімкніть нанесення координат ХНО кліком", 
-        value=False, 
-        help="Вимкніть цю функцію перед нанесенням тексту на карту."
-    )
-
-  # --------------------------------------------------------------------------
-    # РОЗРАХУНКИ ТА ВИВЕДЕННЯ РЕЗУЛЬТАТІВ
-    # --------------------------------------------------------------------------
-    km_val = get_km_factor(kp_val, vert_st)
-
-    g1_base, q1_t = get_base_depth_with_q(substance, vert_st, q_val, wind_v)
-    gt2_base, q2_t = get_base_depth_gt2_with_q(substance, vert_st, q_val, wind_v)
-    kt1_res = interpolate_1d(temp, TABLE_K_T1.get(substance, {})) if (TABLE_K_T1 and substance in TABLE_K_T1) else 1.0
-    kt2_res = interpolate_1d(temp, K_t2.get(substance, {})) if (K_t2 and substance in K_t2) else 1.0
-    kk1_res = get_kk_factor(q_val, q1_t, vert_st)
-    kk2_res = get_kk_factor(q_val, q2_t, vert_st)
-    kp_poddon = 0.5 if is_closed else 1.0
-
-    g1_res = g1_base * kt1_res * kk1_res * km_val
-    g2_res = gt2_base * kt2_res * kk2_res * kp_poddon * km_val
-    r_a = 0.5
-    g_res = max(g1_res, g2_res) + r_a
-
-    if vert_st == "Інверсія": phi_res = 40.0
-    elif vert_st == "Ізотермія": phi_res = 50.0
-    else: phi_res = 70.0
-
-    s_res = 8.72e-4 * (g_res ** 2) * phi_res
-
-    st.subheader("Результати аварійного прогнозування")
-    
-    # Агресивний CSS для стиснення відступів між KaTeX та елементами
-    st.markdown("""
-    <style>
-        .compact-container {
-            margin-top: -10px !important;
-            margin-bottom: -10px !important;
-        }
-        .compact-container p {
-            margin: 2px 0px !important;
-            padding: 0px !important;
-            line-height: 1.2 !important;
-        }
-        .compact-container .katex-display {
-            margin: 2px 0px !important;
-            padding: 0px !important;
-        }
-        .compact-container hr {
-            margin: 4px 0px !important;
-            border-color: #ffd700 !important;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-
-    results_html = f"""
+""", unsafe_allow_html=True)    results_html = f"""
     <div class="compact-container">
 
     **1. Глибина розповсюдження первинної хмари ($Г_1$):**
