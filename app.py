@@ -362,7 +362,8 @@ st.markdown("""
         border-color: #ffd700 !important;
     }
 </style>
-""", unsafe_allow_html=True)st.markdown('<div class="app-title">Аварійне прогнозування масштабів хімічної аварії</div>', unsafe_allow_html=True)
+""", unsafe_allow_html=True)
+st.markdown('<div class="app-title">Аварійне прогнозування масштабів хімічної аварії</div>', unsafe_allow_html=True)
 
 col_params, col_map = st.columns([1, 2])
 
