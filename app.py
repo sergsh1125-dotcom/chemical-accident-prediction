@@ -407,7 +407,8 @@ results_html = f"""
     </div>
     """
     
-    st.markdown(results_html, unsafe_allow_html=True)    # Створення карти для експорту
+    st.markdown(results_html, unsafe_allow_html=True)   
+    # Створення карти для експорту
     m_export = folium.Map(location=[st.session_state["lat"], st.session_state["lon"]], zoom_start=11, tiles=None)
     setup_map_base(m_export)
     
