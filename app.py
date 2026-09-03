@@ -361,7 +361,9 @@ with col_params:
         help="Вимкніть цю функцію перед нанесенням тексту на карту."
     )
 
-    # ОБЧИСЛЕННЯ Кm ІЗ Кp ТА ВЕРТИКАЛЬНОЇ СТІЙКОСТІ
+   # --------------------------------------------------------------------------
+    # РОЗРАХУНКИ ТА ВИВЕДЕННЯ РЕЗУЛЬТАТІВ
+    # --------------------------------------------------------------------------
     km_val = get_km_factor(kp_val, vert_st)
 
     g1_base, q1_t = get_base_depth_with_q(substance, vert_st, q_val, wind_v)
@@ -384,7 +386,33 @@ with col_params:
     s_res = 8.72e-4 * (g_res ** 2) * phi_res
 
     st.subheader("Результати аварійного прогнозування")
+    
+    # CSS-стиль для мінімізації міжрядкових інтервалів у блоці формул
+    st.markdown("""
+    <style>
+        .compact-results p {
+            margin-top: 2px !important;
+            margin-bottom: 0px !important;
+            padding-top: 0px !important;
+            padding-bottom: 0px !important;
+            line-height: 1.1 !important;
+        }
+        .compact-results [data-testid="stLatex"] {
+            margin-top: -8px !important;
+            margin-bottom: -4px !important;
+            padding-top: 0px !important;
+            padding-bottom: 0px !important;
+        }
+        .compact-results hr {
+            margin-top: 4px !important;
+            margin-bottom: 4px !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
     with st.container():
+        st.markdown('<div class="compact-results">', unsafe_allow_html=True)
+        
         st.markdown("**1. Глибина розповсюдження первинної хмари ($Г_1$):**")
         st.latex(r"Г_1 = Г_{\text{табл1}} \cdot K_{t1} \cdot K_k \cdot K_m")
         st.latex(f"Г_1 = {g1_base:.2f} \\cdot {kt1_res:.2f} \\cdot {kk1_res:.2f} \\cdot {km_val:.2f} = \\mathbf{{{g1_res:.2f}}}\\text{{ км}}")
@@ -404,6 +432,7 @@ with col_params:
         st.latex(r"S = 8.72 \cdot 10^{-4} \cdot Г^2 \cdot \phi")
         st.latex(f"S = 8.72 \\cdot 10^{{-4}} \\cdot ({g_res:.2f})^2 \\cdot {phi_res:.0f} = \\mathbf{{{s_res:.2f}}}\\text{{ км}}²")
 
+        st.markdown('</div>', unsafe_allow_html=True)
     # Створення карти для експорту
     m_export = folium.Map(location=[st.session_state["lat"], st.session_state["lon"]], zoom_start=11, tiles=None)
     setup_map_base(m_export)
