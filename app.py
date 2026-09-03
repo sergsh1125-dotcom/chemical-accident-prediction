@@ -8,8 +8,6 @@ from streamlit_folium import st_folium
 # ------------------------------------------------------------------------------
 import data_tables
 
-import data_tables
-
 TABLE_G_T1 = getattr(data_tables, "TABLE_G_T1", {})
 TABLE_K_T1 = getattr(data_tables, "TABLE_K_T1", {})
 G_t2 = getattr(data_tables, "G_t2", {})
@@ -17,6 +15,8 @@ K_t2 = getattr(data_tables, "K_t2", {})
 TABLE_K_K = getattr(data_tables, "TABLE_K_K", {})
 KP_OPTIONS = getattr(data_tables, "KP_OPTIONS", {})
 TABLE_K_M = getattr(data_tables, "TABLE_K_M", {})
+
+# ------------------------------------------------------------------------------
 # 2. ІНІЦІАЛІЗАЦІЯ SESSION STATE
 # ------------------------------------------------------------------------------
 if "lat" not in st.session_state:
@@ -38,7 +38,7 @@ def update_from_input():
     st.session_state["lon"] = round(st.session_state["input_lon"], 4)
 
 # ------------------------------------------------------------------------------
-# РОЗРАХУНКОВІ ФУНКЦІЇ
+# 3. РОЗРАХУНКОВІ ФУНКЦІЇ
 # ------------------------------------------------------------------------------
 def interpolate_1d(val, points):
     if not points or not isinstance(points, dict):
@@ -77,7 +77,6 @@ def get_base_depth_with_q(substance, vert_st, q, wind_v):
     if not q_keys:
         return 0.0, 1.0
     
-    # Пошук найближчого табличного значення Qт (за найменшою абсолютною різницею)
     q_target_val = min(q_keys, key=lambda x: abs(x - q))
     q_target_key = q_map[q_target_val]
     
@@ -105,7 +104,6 @@ def get_base_depth_gt2_with_q(substance, vert_st, q, wind_v):
     if not q_keys:
         return 0.0, 1.0
     
-    # Пошук найближчого табличного значення Qт (за найменшою абсолютною різницею)
     q_target_val = min(q_keys, key=lambda x: abs(x - q))
     q_target_key = q_map[q_target_val]
     
@@ -133,48 +131,12 @@ def get_kk_factor(q_user, q_table, vert_st):
     if TABLE_K_K and vert_st in TABLE_K_K:
         return interpolate_1d(ratio, TABLE_K_K[vert_st])
     return 1.0
+
 def get_km_factor(kp_val, vert_st):
     """Визначає коефіцієнт Km на основі Kp та вертикальної стійкості атмосфери"""
     if TABLE_K_M and vert_st in TABLE_K_M:
         return interpolate_1d(kp_val, TABLE_K_M[vert_st])
     return 1.0
-def calculate_zone(substance, vert_st, q, wind_v, temp, is_closed, km_val):
-    # 1. Первинна хмара
-    g1_base, q1_table = get_base_depth_with_q(substance, vert_st, q, wind_v)
-    kt1 = 1.0
-    if TABLE_K_T1 and substance in TABLE_K_T1 and TABLE_K_T1[substance]:
-        kt1 = interpolate_1d(temp, TABLE_K_T1[substance])
-    kk1 = get_kk_factor(q, q1_table, vert_st)
-    
-    # Формула Г1
-    g1 = g1_base * kt1 * kk1 * km_val
-
-    # 2. Вторинна хмара
-    gt2_base, q2_table = get_base_depth_gt2_with_q(substance, vert_st, q, wind_v)
-    kt2 = 1.0
-    if K_t2 and substance in K_t2 and K_t2[substance]:
-        kt2 = interpolate_1d(temp, K_t2[substance])
-    kk2 = get_kk_factor(q, q2_table, vert_st)
-    
-    # Коефіцієнт піддону (Кп)
-    kp_val = 0.5 if is_closed else 1.0
-    
-    # Формула Г2
-    g2 = gt2_base * kt2 * kk2 * kp_val * km_val
-
-    # 3. Підсумкова глибина та площа
-    r_a = 0.5
-    g_total = max(g1, g2) + r_a
-    
-    if vert_st == "Інверсія":
-        phi = 40.0
-    elif vert_st == "Ізотермія":
-        phi = 50.0
-    else:
-        phi = 70.0
-        
-    s_area = 8.72e-4 * (g_total ** 2) * phi
-    return g_total, g1, g2, phi, kt1, kt2, s_area
 
 def create_sector_geojson(lat, lon, radius_km, wind_deg, phi_deg):
     r_m = radius_km * 1000.0
@@ -231,22 +193,19 @@ def setup_map_base(m):
 # ------------------------------------------------------------------------------
 st.set_page_config(layout="wide", page_title="Прогноз хімічної аварії")
 
-# CSS-СТИЛІЗАЦІЯ ПІД ДИЗАЙН ПЛАТФОРМИ ХБРЯ
+# CSS-СТИЛІЗАЦІЯ
 st.markdown("""
 <style>
-    /* Приховуємо стандартні елементи Streamlit */
     #MainMenu {visibility: hidden;} 
     header {visibility: hidden;} 
     footer {visibility: hidden;} 
     .stAppHeader {display: none;}
 
-    /* Загальний темний фон додатка */
     .stApp {
         background-color: #0e0f12;
         color: #ffd700;
     }
 
-    /* Назва застосунку */
     .app-title {
         color: #ffd700 !important;
         font-size: 2.2rem !important;
@@ -254,23 +213,16 @@ st.markdown("""
         margin-bottom: 1.5rem;
     }
 
-    /* ОСНОВНІ ЗАГОЛОВКИ ТА ПІДПИСИ ДО ПОЛІВ — ЖОВТІ */
     h1, h2, h3, h4, h5, h6, label, p, span, .stMarkdown {
         color: #ffd700 !important;
     }
 
-    /* Рамки та фон для блоків і форм */
     [data-testid="stForm"], [data-testid="stMetric"], .stAlert {
         border: 1.5px solid #ffd700 !important;
         border-radius: 6px !important;
         background-color: #14161d !important;
     }
 
-    /* ========================================================================= */
-    /* ПОВНЕ ПЕРЕВИЗНАЧЕННЯ ВІКОНЕЦЬ ВВЕДЕННЯ ТА ВИПАДАЮЧИХ СПИСКІВ              */
-    /* ========================================================================= */
-
-    /* 1. БІЛИЙ ФОН ДЛЯ ВСІХ ПОЛІВ ВВЕДЕННЯ */
     div[data-baseweb="select"] > div, 
     div[data-baseweb="input"] > div, 
     div[data-baseweb="base-input"],
@@ -280,7 +232,6 @@ st.markdown("""
         border-radius: 4px !important;
     }
 
-    /* 2. ЧОРНИЙ ТЕКСТ УСЕРЕДИНІ ВІКОНЕЦЬ (ФІКС ЖОВТОГО ШРИФТУ) */
     div[data-baseweb="select"] div,
     div[data-baseweb="select"] span,
     div[data-baseweb="select"] p,
@@ -292,7 +243,6 @@ st.markdown("""
         font-weight: bold !important;
     }
 
-    /* 3. ПОПОВЕР ТА СПИСОК, ЩО ВИПАДАЄ ПРИ КЛІКУ (БІЛИЙ ФОН) */
     [data-baseweb="popover"],
     [data-baseweb="popover"] > div,
     [data-baseweb="menu"],
@@ -301,7 +251,6 @@ st.markdown("""
         border: 1px solid #cccccc !important;
     }
 
-    /* 4. ЧОРНИЙ ТЕКСТ ДЛЯ ВСІХ ПУНКТІВ СПИСКУ В МЕНЮ */
     [data-baseweb="popover"] li,
     [data-baseweb="popover"] li *,
     [data-baseweb="menu"] li,
@@ -313,7 +262,6 @@ st.markdown("""
         -webkit-text-fill-color: #000000 !important;
     }
 
-    /* 5. ПІДСВІЧУВАННЯ ПУНКТУ ПРИ НАВЕДЕННІ ВІДКУРСОРУ / ПАЛЬЦЯ */
     [data-baseweb="popover"] li:hover,
     [data-baseweb="popover"] li:hover *,
     ul[role="listbox"] li[aria-selected="true"],
@@ -323,14 +271,12 @@ st.markdown("""
         -webkit-text-fill-color: #000000 !important;
     }
 
-    /* 6. Нативні елементи select на мобільних */
     select option {
         background-color: #ffffff !important;
         color: #000000 !important;
         -webkit-text-fill-color: #000000 !important;
     }
 
-    /* 7. Чорні стрілочки випадаючих списків та плюси/мінуси у числах */
     div[data-baseweb="select"] svg,
     div[data-baseweb="input"] svg,
     button[title="Decrease"],
@@ -339,9 +285,6 @@ st.markdown("""
         color: #000000 !important;
     }
 
-    /* ========================================================================= */
-
-    /* КНОПКИ (Жовта кнопка, Чорний текст) */
     div.stButton > button, button[kind="secondaryFormSubmit"] {
         background-color: #ffcc00 !important;
         border: 1px solid #ffd700 !important;
@@ -378,18 +321,70 @@ st.markdown("""
         border-color: #ffd700 !important;
     }
 </style>
-""", unsafe_allow_html=True)    
-results_html = f"""
+""", unsafe_allow_html=True)
+
+st.title("Платформа ХБРЯ: Прогнозування хімічної аварії")
+
+# ЛІВА ТА РАЙОННА ПАНЕЛІ (Колонки)
+col_inputs, col_map = st.columns([1, 2])
+
+with col_inputs:
+    st.subheader("Вихідні дані аварії")
+    
+    substances = list(TABLE_G_T1.keys()) if TABLE_G_T1 else ["Хлор"]
+    substance = st.selectbox("СДОР / НХР:", substances)
+    
+    q_val = st.number_input("Кількість СДОР (т):", min_value=0.1, value=10.0, step=1.0)
+    
+    vert_st = st.selectbox("Вертикальна стійкість:", ["Інверсія", "Ізотермія", "Конвекція"])
+    wind_v = st.number_input("Швидкість вітру (м/с):", min_value=0.5, value=2.0, step=0.5)
+    wind_deg = st.number_input("Напрямок вітру (градуси):", min_value=0, max_value=360, value=180, step=5)
+    temp = st.number_input("Температура повітря (°C):", value=20.0, step=1.0)
+    
+    is_closed = st.checkbox("Наявність обвалування / піддону", value=False)
+    allow_click_move = st.checkbox("Змінювати координати осередку кліком по карті", value=False)
+    
+    # --------------------------------------------------------------------------
+    # РОЗРАХУНОК
+    # --------------------------------------------------------------------------
+    g1_base, q1_table = get_base_depth_with_q(substance, vert_st, q_val, wind_v)
+    kt1_res = interpolate_1d(temp, TABLE_K_T1.get(substance, {})) if TABLE_K_T1 else 1.0
+    kk1_res = get_kk_factor(q_val, q1_table, vert_st)
+
+    gt2_base, q2_table = get_base_depth_gt2_with_q(substance, vert_st, q_val, wind_v)
+    kt2_res = interpolate_1d(temp, K_t2.get(substance, {})) if K_t2 else 1.0
+    kk2_res = get_kk_factor(q_val, q2_table, vert_st)
+    kp_poddon = 0.5 if is_closed else 1.0
+    
+    km_val = get_km_factor(kp_poddon, vert_st)
+
+    g1_res = g1_base * kt1_res * kk1_res * km_val
+    g2_res = gt2_base * kt2_res * kk2_res * kp_poddon * km_val
+
+    r_a = 0.5
+    g_res = max(g1_res, g2_res) + r_a
+
+    if vert_st == "Інверсія":
+        phi_res = 40.0
+    elif vert_st == "Ізотермія":
+        phi_res = 50.0
+    else:
+        phi_res = 70.0
+
+    s_res = 8.72e-4 * (g_res ** 2) * phi_res
+
+    # ВІДОБРАЖЕННЯ РЕЗУЛЬТАТІВ У ЛІВІЙ КОЛОНЦІ
+    results_html = f"""
     <div class="compact-container">
 
     **1. Глибина розповсюдження первинної хмари ($Г_1$):**
-    $$Г_1 = Г_{{\\text{{табл1}}}} \\cdot K_{{t1}} \\cdot K_k \\cdot K_m$$
+    $$Г_1 = Г={{\\text{{табл1}}}} \\cdot K_{{t1}} \\cdot K_k \\cdot K_m$$
     $$Г_1 = {g1_base:.2f} \\cdot {kt1_res:.2f} \\cdot {kk1_res:.2f} \\cdot {km_val:.2f} = \\mathbf{{{g1_res:.2f}}}\\text{{ км}}$$
 
     ---
 
     **2. Глибина розповсюдження вторинної хмари ($Г_2$):**
-    $$Г_2 = Г_{{\\text{{табл2}}}} \\cdot K_{{t2}} \\cdot K_k \\cdot K_п \\cdot K_m$$
+    $$Г_2 = Г={{\\text{{табл2}}}} \\cdot K_{{t2}} \\cdot K_k \\cdot K_п \\cdot K_m$$
     $$Г_2 = {gt2_base:.2f} \\cdot {kt2_res:.2f} \\cdot {kk2_res:.2f} \\cdot {kp_poddon:.2f} \\cdot {km_val:.2f} = \\mathbf{{{g2_res:.2f}}}\\text{{ км}}$$
 
     ---
@@ -407,8 +402,9 @@ results_html = f"""
     </div>
     """
     
-    st.markdown(results_html, unsafe_allow_html=True)   
-    # Створення карти для експорту
+    st.markdown(results_html, unsafe_allow_html=True)
+    
+    # ЕКСПОРТ В HTML
     m_export = folium.Map(location=[st.session_state["lat"], st.session_state["lon"]], zoom_start=11, tiles=None)
     setup_map_base(m_export)
     
@@ -464,7 +460,9 @@ with col_map:
     folium.Polygon(locations=sector_coords, color="black", fill=True, fill_color="orange", fill_opacity=0.35, weight=2).add_to(m_display)
     m_display.get_root().html.add_child(folium.Element(get_wind_widget_html(wind_deg, wind_v)))
 
-    map_data = st_folium(m_display, width="100%", height=530, key="main_map")    # --------------------------------------------------------------------------
+    map_data = st_folium(m_display, width="100%", height=530, key="main_map")
+
+    # --------------------------------------------------------------------------
     # ПАНЕЛЬ НАНЕСЕННЯ ТЕКСТУ
     # --------------------------------------------------------------------------
     st.divider()
