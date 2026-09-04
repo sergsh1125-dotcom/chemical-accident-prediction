@@ -32,12 +32,8 @@ if "input_lon" not in st.session_state:
 if "user_texts" not in st.session_state:
     st.session_state["user_texts"] = []
 
-def update_from_input():
-    st.session_state["lat"] = round(st.session_state["input_lat"], 4)
-    st.session_state["lon"] = round(st.session_state["input_lon"], 4)
-
 # ------------------------------------------------------------------------------
-# 3. РОЗРАХУНКОВІ ФУНКЦІЇ (З ТОЧНИМ ПОШУКОМ 10 М/С)
+# 3. РОЗРАХУНКОВІ ФУНКЦІЇ
 # ------------------------------------------------------------------------------
 def interpolate_1d(val, points):
     if not points or not isinstance(points, dict):
@@ -79,8 +75,6 @@ def get_base_depth_with_q(substance, vert_st, q, wind_v):
     q_target_key = q_map[q_target_val]
     
     v_dict = st_data[q_target_key]
-    
-    # Пошук найближчої/точної швидкості у словнику
     v_map = {float(k): k for k in v_dict.keys()}
     v_keys = sorted(v_map.keys())
     if not v_keys:
@@ -107,7 +101,6 @@ def get_base_depth_gt2_with_q(substance, vert_st, q, wind_v):
         return 0.0, q_target_val
     v_dict = sub_data[q_target_key][vert_st]
     
-    # Пошук найближчої/точної швидкості у словнику
     v_map = {float(k): k for k in v_dict.keys()}
     v_keys = sorted(v_map.keys())
     if not v_keys:
@@ -172,11 +165,11 @@ def get_wind_widget_html(wind_deg, wind_v):
 
 def setup_map_base(m):
     folium.TileLayer(
-        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{{z}}/{{y}}/{{x}}",
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         attr="Esri World Imagery", name="супутникова карта", overlay=False, control=True
     ).add_to(m)
     folium.TileLayer(
-        tiles="https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png",
+        tiles="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
         attr="OpenStreetMap", name="OpenStreetMap", overlay=False, control=True
     ).add_to(m)
     folium.LayerControl(position="topright", collapsed=False).add_to(m)
@@ -307,40 +300,37 @@ col_inputs, col_map = st.columns([1, 2])
 with col_inputs:
     st.subheader("Вихідні дані аварії")
     
-    with st.form(key="accident_params_form"):
-        substances = list(TABLE_G_T1.keys()) if TABLE_G_T1 else ["Хлор"]
-        substance = st.selectbox("НХР:", substances)
+    substances = list(TABLE_G_T1.keys()) if TABLE_G_T1 else ["Аміак", "Хлор"]
+    substance = st.selectbox("НХР:", substances, key="substance_select")
+    
+    q_val = st.number_input("Кількість НХР (т):", min_value=0.1, value=10.0, step=1.0, key="q_val_input")
+    
+    vert_st = st.selectbox("Вертикальна стійкість:", ["Інверсія", "Ізотермія", "Конвекція"], key="vert_st_select")
+    
+    # Динамічний список швидкостей вітру
+    wind_options = [1.0, 2.0, 3.0, 4.0]
+    if vert_st == "Ізотермія":
+        wind_options.append(10.0)
         
-        q_val = st.number_input("Кількість НХР (т):", min_value=0.1, value=10.0, step=1.0)
-        
-        vert_st = st.selectbox("Вертикальна стійкість:", ["Інверсія", "Ізотермія", "Конвекція"])
-        
-        # ФОРМУВАННЯ СПИСКУ ШВИДКОСТЕЙ ВІТРУ
-        wind_options = [1.0, 2.0, 3.0, 4.0]
-        if vert_st == "Ізотермія":
-            wind_options.append(10.0)
-            
-        wind_v = st.selectbox("Швидкість вітру (м/с):", wind_options, index=0)
-        
-        wind_deg = st.number_input("Напрямок вітру (градуси):", min_value=0, max_value=360, value=180, step=5)
-        temp = st.number_input("Температура повітря (°C):", value=20.0, step=1.0)
-        
-        is_closed = st.checkbox("Наявність обвалування / піддону", value=False)
-        
-        st.markdown("**Координати осередку аварії:**")
-        col_c1, col_c2 = st.columns(2)
-        with col_c1:
-            input_lat_val = st.number_input("Широта (Lat):", value=st.session_state["lat"], format="%.4f", step=0.001)
-        with col_c2:
-            input_lon_val = st.number_input("Довгота (Lon):", value=st.session_state["lon"], format="%.4f", step=0.001)
-        
-        btn_calc = st.form_submit_button("🧮 РОЗРАХУВАТИ")
-
-    if btn_calc:
+    wind_v = st.selectbox("Швидкість вітру (м/с):", wind_options, key="wind_v_select")
+    
+    wind_deg = st.number_input("Напрямок вітру (градуси):", min_value=0, max_value=360, value=180, step=5, key="wind_deg_input")
+    temp = st.number_input("Температура повітря (°C):", value=20.0, step=1.0, key="temp_input")
+    
+    is_closed = st.checkbox("Наявність обвалування / піддону", value=False, key="is_closed_chk")
+    
+    st.markdown("**Координати осередку аварії:**")
+    col_c1, col_c2 = st.columns(2)
+    with col_c1:
+        input_lat_val = st.number_input("Широта (Lat):", value=st.session_state["lat"], format="%.4f", step=0.001, key="lat_input")
+    with col_c2:
+        input_lon_val = st.number_input("Довгота (Lon):", value=st.session_state["lon"], format="%.4f", step=0.001, key="lon_input")
+    
+    if st.button("🧮 РОЗРАХУВАТИ", key="btn_calc_main"):
         st.session_state["lat"] = round(input_lat_val, 4)
         st.session_state["lon"] = round(input_lon_val, 4)
 
-    allow_click_move = st.checkbox("Змінювати координати осередку кліком по карті", value=False)
+    allow_click_move = st.checkbox("Змінювати координати осередку кліком по карті", value=False, key="click_move_chk")
     
     # --------------------------------------------------------------------------
     # РОЗРАХУНОК
@@ -422,7 +412,8 @@ with col_inputs:
         label="📥 Завантажити HTML карту",
         data=m_export._repr_html_().encode("utf-8"),
         file_name="карта_забруднення.html",
-        mime="text/html"
+        mime="text/html",
+        key="btn_download_map"
     )
 
 with col_map:
@@ -487,7 +478,7 @@ with col_map:
                 st.rerun()
 
     if st.session_state.get("user_texts"):
-        if st.button("Очистити всі нанесені тексти"):
+        if st.button("Очистити всі нанесені тексти", key="btn_clear_text"):
             st.session_state["user_texts"] = []
             st.rerun()
 
