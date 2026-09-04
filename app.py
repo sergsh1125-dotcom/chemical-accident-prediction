@@ -119,11 +119,6 @@ def get_kk_factor(q_user, q_table, vert_st):
         return interpolate_1d(ratio, TABLE_K_K[vert_st])
     return 1.0
 
-def get_km_factor(kp_val, vert_st):
-    if TABLE_K_M and vert_st in TABLE_K_M:
-        return interpolate_1d(kp_val, TABLE_K_M[vert_st])
-    return 1.0
-
 def create_sector_geojson(lat, lon, radius_km, wind_deg, phi_deg):
     r_m = radius_km * 1000.0
     cloud_vector_deg = (270.0 - wind_deg) % 360.0
@@ -318,6 +313,30 @@ with col_inputs:
     
     is_closed = st.checkbox("Наявність обвалування / піддону", value=False, key="is_closed_chk")
     
+    st.markdown("---")
+    st.subheader("🏞 Умови місцевості (для K_m)")
+    
+    terrain_preset = st.selectbox(
+        "Характер рельєфу та рослинності:",
+        [
+            "Відкрита місцевість (Км = 1.0)",
+            "Міська забудова / Суцільний ліс (Км = 0.33)",
+            "Сільська забудова / Лісосмуги (Км = 0.5)",
+            "Ввести вручну"
+        ],
+        key="terrain_preset_select"
+    )
+    
+    if terrain_preset == "Відкрита місцевість (Км = 1.0)":
+        km_val = 1.0
+    elif terrain_preset == "Міська забудова / Суцільний ліс (Км = 0.33)":
+        km_val = 0.33
+    elif terrain_preset == "Сільська забудова / Лісосмуги (Км = 0.5)":
+        km_val = 0.5
+    else:
+        km_val = st.number_input("Коефіцієнт місцевості (K_m):", min_value=0.01, max_value=2.0, value=1.0, step=0.05, key="km_manual_input")
+
+    st.markdown("---")
     st.markdown("**Координати осередку аварії:**")
     col_c1, col_c2 = st.columns(2)
     with col_c1:
@@ -342,8 +361,6 @@ with col_inputs:
     kt2_res = interpolate_1d(temp, K_t2.get(substance, {})) if K_t2 else 1.0
     kk2_res = get_kk_factor(q_val, q2_table, vert_st)
     kp_poddon = 0.5 if is_closed else 1.0
-    
-    km_val = get_km_factor(kp_poddon, vert_st)
 
     g1_res = g1_base * kt1_res * kk1_res * km_val
     g2_res = gt2_base * kt2_res * kk2_res * kp_poddon * km_val
