@@ -391,7 +391,7 @@ with col_inputs:
     st.markdown(results_html, unsafe_allow_html=True)
     
     # --------------------------------------------------------------------------
-    # ЕКСПОРТ В HTML ТА АВТОМАТИЧНИЙ ПІДПИС
+    # ЕКСПОРТ В HTML ТА ПРОЗОРІЙ ПІДПИС
     # --------------------------------------------------------------------------
     m_export = folium.Map(location=[st.session_state["lat"], st.session_state["lon"]], zoom_start=11, tiles=None)
     setup_map_base(m_export)
@@ -400,7 +400,7 @@ with col_inputs:
         folium.Marker(
             [txt_data["lat"], txt_data["lon"]],
             icon=folium.DivIcon(
-                html=f'<div style="color: #000000; font-weight: bold; font-size: 15px; background: transparent; padding: 0px; border: none; white-space: nowrap;">{txt_data["text"]}</div>'
+                html=f'<div style="color: #000000; font-weight: bold; font-size: 15px; background: transparent; padding: 0px; border: none; white-space: nowrap; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;">{txt_data["text"]}</div>'
             )
         ).add_to(m_export)
 
@@ -409,12 +409,11 @@ with col_inputs:
     folium.Polygon(locations=sector_coords, color="black", fill=True, fill_color="orange", fill_opacity=0.35, weight=2).add_to(m_export)
     m_export.get_root().html.add_child(folium.Element(get_wind_widget_html(wind_deg, wind_v)))
     
-    # Автоматичний маркер-підпис для завантажуваної карти
     label_text = f"{substance} - {q_val:g} т"
     folium.Marker(
         [st.session_state["lat"] + 0.0008, st.session_state["lon"] + 0.0015],
         icon=folium.DivIcon(
-            html=f'''<div style="background-color: white; color: black; border: 1px solid black; border-radius: 3px; padding: 2px 6px; font-weight: bold; font-size: 13px; white-space: nowrap; box-shadow: 2px 2px 4px rgba(0,0,0,0.3);">{label_text}</div>'''
+            html=f'''<div style="background: transparent; color: #000000; font-weight: bold; font-size: 15px; white-space: nowrap; text-shadow: -1px -1px 0 #ffffff, 1px -1px 0 #ffffff, -1px 1px 0 #ffffff, 1px 1px 0 #ffffff;">{label_text}</div>'''
         )
     ).add_to(m_export)
     
@@ -446,27 +445,26 @@ with col_map:
     m_display = folium.Map(location=[current_lat, current_lon], zoom_start=11, tiles=None)
     setup_map_base(m_display)
     
-    # Нанесення додаткових користувацьких текстів
+    # Користувацькі тексти на карті
     for txt_data in st.session_state["user_texts"]:
         folium.Marker(
             [txt_data["lat"], txt_data["lon"]],
             icon=folium.DivIcon(
-                html=f'<div style="color: #000000; font-weight: bold; font-size: 15px; background: transparent; padding: 0px; border: none; white-space: nowrap;">{txt_data["text"]}</div>'
+                html=f'<div style="color: #000000; font-weight: bold; font-size: 15px; background: transparent; padding: 0px; border: none; white-space: nowrap; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;">{txt_data["text"]}</div>'
             )
         ).add_to(m_display)
     
-    # 1. Коло осередку
     folium.Circle(location=[current_lat, current_lon], radius=500, color="darkorange", fill=True, fill_color="orange", fill_opacity=0.8).add_to(m_display)
-    
-    # 2. Сектор забруднення
     folium.Polygon(locations=sector_coords, color="black", fill=True, fill_color="orange", fill_opacity=0.35, weight=2).add_to(m_display)
     
-    # 3. АВТОМАТИЧНИЙ ПІДПИС РЕЧОВИНИ ТА КІЛЬКОСТІ (БІЛЯ ОСЕРЕДКУ)
+    # --------------------------------------------------------------------------
+    # ПРОЗОРИЙ ПІДПИС РЕЧОВИНИ ТА КІЛЬКОСТІ
+    # --------------------------------------------------------------------------
     auto_label_text = f"{substance} - {q_val:g} т"
     folium.Marker(
         [current_lat + 0.0008, current_lon + 0.0015],
         icon=folium.DivIcon(
-            html=f'''<div style="background-color: white; color: black; border: 1px solid black; border-radius: 3px; padding: 2px 6px; font-weight: bold; font-size: 13px; white-space: nowrap; box-shadow: 2px 2px 4px rgba(0,0,0,0.3);">{auto_label_text}</div>'''
+            html=f'''<div style="background: transparent; color: #000000; font-weight: bold; font-size: 15px; white-space: nowrap; text-shadow: -1px -1px 0 #ffffff, 1px -1px 0 #ffffff, -1px 1px 0 #ffffff, 1px 1px 0 #ffffff;">{auto_label_text}</div>'''
         )
     ).add_to(m_display)
 
