@@ -59,6 +59,11 @@ def interpolate_1d(val, points):
             return y0 + (y1 - y0) * (val - x0) / (x1 - x0)
     return 1.0
 
+def get_km_factor(vert_st, kp_val):
+    if TABLE_K_M and vert_st in TABLE_K_M:
+        return interpolate_1d(kp_val, TABLE_K_M[vert_st])
+    return 1.0
+
 def get_base_depth_with_q(substance, vert_st, q, wind_v):
     if substance not in TABLE_G_T1:
         return 0.0, 1.0
@@ -314,27 +319,25 @@ with col_inputs:
     is_closed = st.checkbox("Наявність обвалування / піддону", value=False, key="is_closed_chk")
     
     st.markdown("---")
-    st.subheader("🏞 Умови місцевості (для K_m)")
+    st.subheader("🏞 Рельєф та рослинність (Додатки 5, 6)")
     
-    terrain_preset = st.selectbox(
-        "Характер рельєфу та рослинності:",
-        [
-            "Відкрита місцевість (Км = 1.0)",
-            "Міська забудова / Суцільний ліс (Км = 0.33)",
-            "Сільська забудова / Лісосмуги (Км = 0.5)",
-            "Ввести вручну"
-        ],
-        key="terrain_preset_select"
-    )
+    kp_keys = list(KP_OPTIONS.keys()) if KP_OPTIONS else [
+        "Рельєф - рівнинний, рослинність - степова (зима)",
+        "Рельєф - рівнинний, рослинність- степова (літо)",
+        "Рельєф - рівнинний, рослинність - ліс змішаний",
+        "Рельєф - рівнинний, рослинність - ліс хвойний",
+        "Рельєф - горбистий, рослинність - степова",
+        "Рельєф горбистий, рослинність - ліс змішаний",
+        "Рельєф горбистий, рослинність - ліс хвойний"
+    ]
     
-    if terrain_preset == "Відкрита місцевість (Км = 1.0)":
-        km_val = 1.0
-    elif terrain_preset == "Міська забудова / Суцільний ліс (Км = 0.33)":
-        km_val = 0.33
-    elif terrain_preset == "Сільська забудова / Лісосмуги (Км = 0.5)":
-        km_val = 0.5
-    else:
-        km_val = st.number_input("Коефіцієнт місцевості (K_m):", min_value=0.01, max_value=2.0, value=1.0, step=0.05, key="km_manual_input")
+    selected_kp_desc = st.selectbox("Ландшафт місцевості:", kp_keys, key="kp_select")
+    kp_val = KP_OPTIONS.get(selected_kp_desc, 0.3)
+    
+    # Визначення K_m з TABLE_K_M залежно від K_p та стійкості атмосфери
+    km_val = get_km_factor(vert_st, kp_val)
+    
+    st.caption(f"Комплексний показник $K_p = {kp_val}$, Коефіцієнт місцевості $K_m = {km_val:.2f}$")
 
     st.markdown("---")
     st.markdown("**Координати осередку аварії:**")
