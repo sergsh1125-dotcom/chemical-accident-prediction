@@ -298,16 +298,15 @@ st.title("Прогнозування масштабів хімічної ава�
 col_inputs, col_map = st.columns([1, 2])
 
 with col_inputs:
-    st.subheader("Завантажити дані аварії:")
+    st.subheader("Вихідні дані аварії")
     
     substances = list(TABLE_G_T1.keys()) if TABLE_G_T1 else ["Аміак", "Хлор"]
-    substance = st.selectbox("Назва НХР:", substances, key="substance_select")
+    substance = st.selectbox("НХР:", substances, key="substance_select")
     
     q_val = st.number_input("Кількість НХР (т):", min_value=0.1, value=10.0, step=1.0, key="q_val_input")
     
-    vert_st = st.selectbox("Ступінь вертикальної стійкості повітря:", ["Інверсія", "Ізотермія", "Конвекція"], key="vert_st_select")
+    vert_st = st.selectbox("Вертикальна стійкість:", ["Інверсія", "Ізотермія", "Конвекція"], key="vert_st_select")
     
-    # Динамічний список швидкостей вітру
     wind_options = [1.0, 2.0, 3.0, 4.0]
     if vert_st == "Ізотермія":
         wind_options.append(10.0)
@@ -319,18 +318,18 @@ with col_inputs:
     
     is_closed = st.checkbox("Наявність обвалування / піддону", value=False, key="is_closed_chk")
     
-    st.markdown("**Координати осередку хімічної аварії:**")
+    st.markdown("**Координати осередку аварії:**")
     col_c1, col_c2 = st.columns(2)
     with col_c1:
         input_lat_val = st.number_input("Широта (Lat):", value=st.session_state["lat"], format="%.4f", step=0.001, key="lat_input")
     with col_c2:
         input_lon_val = st.number_input("Довгота (Lon):", value=st.session_state["lon"], format="%.4f", step=0.001, key="lon_input")
     
-    if st.button("РОЗРАХУВАТИ", key="btn_calc_main"):
+    if st.button("🧮 РОЗРАХУВАТИ", key="btn_calc_main"):
         st.session_state["lat"] = round(input_lat_val, 4)
         st.session_state["lon"] = round(input_lon_val, 4)
 
-    allow_click_move = st.checkbox("Змінювати координати осередку аварії кліком на карті", value=False, key="click_move_chk")
+    allow_click_move = st.checkbox("Змінювати координати осередку кліком по карті", value=False, key="click_move_chk")
     
     # --------------------------------------------------------------------------
     # РОЗРАХУНОК
@@ -376,7 +375,7 @@ with col_inputs:
 
     ---
 
-    **3. Загальна глибина прогнозованої зони хімічного забруднення ($Г$):**
+    **3. Загальна глибина зони забруднення ($Г$):**
     $$Г = \\max(Г_1, Г_2) + R_a$$
     $$Г = \\max({g1_res:.2f}, {g2_res:.2f}) + {r_a:.1f} = \\mathbf{{{g_res:.2f}}}\\text{{ км}}$$
 
@@ -391,7 +390,9 @@ with col_inputs:
     
     st.markdown(results_html, unsafe_allow_html=True)
     
-    # ЕКСПОРТ В HTML
+    # --------------------------------------------------------------------------
+    # ЕКСПОРТ В HTML ТА АВТОМАТИЧНИЙ ПІДПИС
+    # --------------------------------------------------------------------------
     m_export = folium.Map(location=[st.session_state["lat"], st.session_state["lon"]], zoom_start=11, tiles=None)
     setup_map_base(m_export)
     
@@ -407,6 +408,15 @@ with col_inputs:
     sector_coords = create_sector_geojson(st.session_state["lat"], st.session_state["lon"], g_res, wind_deg, phi_res)
     folium.Polygon(locations=sector_coords, color="black", fill=True, fill_color="orange", fill_opacity=0.35, weight=2).add_to(m_export)
     m_export.get_root().html.add_child(folium.Element(get_wind_widget_html(wind_deg, wind_v)))
+    
+    # Автоматичний маркер-підпис для завантажуваної карти
+    label_text = f"{substance} - {q_val:g} т"
+    folium.Marker(
+        [st.session_state["lat"] + 0.0008, st.session_state["lon"] + 0.0015],
+        icon=folium.DivIcon(
+            html=f'''<div style="background-color: white; color: black; border: 1px solid black; border-radius: 3px; padding: 2px 6px; font-weight: bold; font-size: 13px; white-space: nowrap; box-shadow: 2px 2px 4px rgba(0,0,0,0.3);">{label_text}</div>'''
+        )
+    ).add_to(m_export)
     
     st.download_button(
         label="📥 Завантажити HTML карту",
@@ -436,6 +446,7 @@ with col_map:
     m_display = folium.Map(location=[current_lat, current_lon], zoom_start=11, tiles=None)
     setup_map_base(m_display)
     
+    # Нанесення додаткових користувацьких текстів
     for txt_data in st.session_state["user_texts"]:
         folium.Marker(
             [txt_data["lat"], txt_data["lon"]],
@@ -444,14 +455,27 @@ with col_map:
             )
         ).add_to(m_display)
     
+    # 1. Коло осередку
     folium.Circle(location=[current_lat, current_lon], radius=500, color="darkorange", fill=True, fill_color="orange", fill_opacity=0.8).add_to(m_display)
+    
+    # 2. Сектор забруднення
     folium.Polygon(locations=sector_coords, color="black", fill=True, fill_color="orange", fill_opacity=0.35, weight=2).add_to(m_display)
+    
+    # 3. АВТОМАТИЧНИЙ ПІДПИС РЕЧОВИНИ ТА КІЛЬКОСТІ (БІЛЯ ОСЕРЕДКУ)
+    auto_label_text = f"{substance} - {q_val:g} т"
+    folium.Marker(
+        [current_lat + 0.0008, current_lon + 0.0015],
+        icon=folium.DivIcon(
+            html=f'''<div style="background-color: white; color: black; border: 1px solid black; border-radius: 3px; padding: 2px 6px; font-weight: bold; font-size: 13px; white-space: nowrap; box-shadow: 2px 2px 4px rgba(0,0,0,0.3);">{auto_label_text}</div>'''
+        )
+    ).add_to(m_display)
+
     m_display.get_root().html.add_child(folium.Element(get_wind_widget_html(wind_deg, wind_v)))
 
     map_data = st_folium(m_display, width="100%", height=530, key="main_map")
 
     st.divider()
-    st.subheader("Нанесення тексту на карту:")
+    st.subheader("Додавання тексту на карту")
     st.markdown("1. Переконайтесь, що галочка визначення координат кліком вимкнена.\n2. **Клікніть мишкою** на карті там, де має бути текст.\n3. Введіть текст у поле нижче та натисніть 'Додати'.")
     
     if map_data and map_data.get("last_clicked"):
