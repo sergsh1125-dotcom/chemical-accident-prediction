@@ -29,7 +29,6 @@ if "input_lat" not in st.session_state:
 if "input_lon" not in st.session_state:
     st.session_state["input_lon"] = st.session_state["lon"]
 
-# Словник для збереження нанесеного тексту
 if "user_texts" not in st.session_state:
     st.session_state["user_texts"] = []
 
@@ -65,7 +64,6 @@ def interpolate_1d(val, points):
     return 1.0
 
 def get_base_depth_with_q(substance, vert_st, q, wind_v):
-    """Повертає (г1_base, q_table) для первинної хмари"""
     if substance not in TABLE_G_T1:
         return 0.0, 1.0
     sub_data = TABLE_G_T1[substance]
@@ -95,7 +93,6 @@ def get_base_depth_with_q(substance, vert_st, q, wind_v):
     return float(v_dict[v_target_key]), float(q_target_val)
 
 def get_base_depth_gt2_with_q(substance, vert_st, q, wind_v):
-    """Повертає (г2_base, q_table) для вторинної хмари"""
     if not G_t2 or substance not in G_t2:
         return 0.0, 1.0
     sub_data = G_t2[substance]
@@ -124,7 +121,6 @@ def get_base_depth_gt2_with_q(substance, vert_st, q, wind_v):
     return float(v_dict[v_target_key]), float(q_target_val)
 
 def get_kk_factor(q_user, q_table, vert_st):
-    """Обчислює відношення Qз/Qт та знаходить Кк за масивом TABLE_K_K"""
     if q_table <= 0:
         return 1.0
     ratio = q_user / q_table
@@ -133,7 +129,6 @@ def get_kk_factor(q_user, q_table, vert_st):
     return 1.0
 
 def get_km_factor(kp_val, vert_st):
-    """Визначає коефіцієнт Km на основі Kp та вертикальної стійкості атмосфери"""
     if TABLE_K_M and vert_st in TABLE_K_M:
         return interpolate_1d(kp_val, TABLE_K_M[vert_st])
     return 1.0
@@ -191,7 +186,7 @@ def setup_map_base(m):
 # ------------------------------------------------------------------------------
 # 4. ІНТЕРФЕЙС STREAMLIT СТИЛІЗОВАНИЙ ПІД ПЛАТФОРМУ ХБРЯ
 # ------------------------------------------------------------------------------
-st.set_page_config(layout="wide", page_title="Прогноз хімічної аварії")
+st.set_page_config(layout="wide", page_title="Прогнозування масштабів хімічної аварії")
 
 # CSS-СТИЛІЗАЦІЯ
 st.markdown("""
@@ -206,13 +201,6 @@ st.markdown("""
         color: #ffd700;
     }
 
-    .app-title {
-        color: #ffd700 !important;
-        font-size: 2.2rem !important;
-        font-weight: bold;
-        margin-bottom: 1.5rem;
-    }
-
     h1, h2, h3, h4, h5, h6, label, p, span, .stMarkdown {
         color: #ffd700 !important;
     }
@@ -223,6 +211,7 @@ st.markdown("""
         background-color: #14161d !important;
     }
 
+    /* Налаштування поля select та варіантів списку з ВЕЛИКИМ ТА ЖИРНИМ шрифтом */
     div[data-baseweb="select"] > div, 
     div[data-baseweb="input"] > div, 
     div[data-baseweb="base-input"],
@@ -230,6 +219,7 @@ st.markdown("""
         background-color: #ffffff !important;
         border: 1.5px solid #ffd700 !important;
         border-radius: 4px !important;
+        font-weight: 900 !important;
     }
 
     div[data-baseweb="select"] div,
@@ -237,10 +227,11 @@ st.markdown("""
     div[data-baseweb="select"] p,
     div[data-baseweb="input"] input,
     div[data-baseweb="base-input"] input,
-    input, textarea, select {
+    input, textarea, select, option {
         color: #000000 !important;
         -webkit-text-fill-color: #000000 !important;
-        font-weight: bold !important;
+        font-weight: 900 !important;
+        font-size: 16px !important;
     }
 
     [data-baseweb="popover"],
@@ -260,6 +251,8 @@ st.markdown("""
         background-color: #ffffff !important;
         color: #000000 !important;
         -webkit-text-fill-color: #000000 !important;
+        font-weight: 900 !important;
+        font-size: 16px !important;
     }
 
     [data-baseweb="popover"] li:hover,
@@ -269,20 +262,7 @@ st.markdown("""
         background-color: #e0e0e0 !important;
         color: #000000 !important;
         -webkit-text-fill-color: #000000 !important;
-    }
-
-    select option {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-        -webkit-text-fill-color: #000000 !important;
-    }
-
-    div[data-baseweb="select"] svg,
-    div[data-baseweb="input"] svg,
-    button[title="Decrease"],
-    button[title="Increase"] {
-        fill: #000000 !important;
-        color: #000000 !important;
+        font-weight: 900 !important;
     }
 
     div.stButton > button, button[kind="secondaryFormSubmit"] {
@@ -290,12 +270,13 @@ st.markdown("""
         border: 1px solid #ffd700 !important;
         border-radius: 5px !important;
         transition: 0.2s;
+        width: 100%;
     }
 
     div.stButton > button p, button[kind="secondaryFormSubmit"] p {
         color: #000000 !important;
         font-weight: bold !important;
-        font-size: 17px !important;
+        font-size: 18px !important;
     }
 
     div.stButton > button:hover, button[kind="secondaryFormSubmit"]:hover {
@@ -323,25 +304,43 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("Платформа ХБРЯ: Прогнозування хімічної аварії")
+# 3) НАЗВА ЗАСТОСУНКУ
+st.title("Прогнозування масштабів хімічної аварії")
 
-# ЛІВА ТА РАЙОННА ПАНЕЛІ (Колонки)
 col_inputs, col_map = st.columns([1, 2])
 
 with col_inputs:
     st.subheader("Вихідні дані аварії")
     
-    substances = list(TABLE_G_T1.keys()) if TABLE_G_T1 else ["Хлор"]
-    substance = st.selectbox("СДОР / НХР:", substances)
-    
-    q_val = st.number_input("Кількість СДОР (т):", min_value=0.1, value=10.0, step=1.0)
-    
-    vert_st = st.selectbox("Вертикальна стійкість:", ["Інверсія", "Ізотермія", "Конвекція"])
-    wind_v = st.number_input("Швидкість вітру (м/с):", min_value=0.5, value=2.0, step=0.5)
-    wind_deg = st.number_input("Напрямок вітру (градуси):", min_value=0, max_value=360, value=180, step=5)
-    temp = st.number_input("Температура повітря (°C):", value=20.0, step=1.0)
-    
-    is_closed = st.checkbox("Наявність обвалування / піддону", value=False)
+    # ФОРМА З КНОПКОЮ "РОЗРАХУВАТИ"
+    with st.form(key="accident_params_form"):
+        substances = list(TABLE_G_T1.keys()) if TABLE_G_T1 else ["Хлор"]
+        substance = st.selectbox("СДОР / НХР:", substances)
+        
+        q_val = st.number_input("Кількість СДОР (т):", min_value=0.1, value=10.0, step=1.0)
+        
+        vert_st = st.selectbox("Вертикальна стійкість:", ["Інверсія", "Ізотермія", "Конвекція"])
+        wind_v = st.number_input("Швидкість вітру (м/с):", min_value=0.5, value=2.0, step=0.5)
+        wind_deg = st.number_input("Напрямок вітру (градуси):", min_value=0, max_value=360, value=180, step=5)
+        temp = st.number_input("Температура повітря (°C):", value=20.0, step=1.0)
+        
+        is_closed = st.checkbox("Наявність обвалування / піддону", value=False)
+        
+        # 3) ВІКНО КООРДИНАТ ОСЕРЕДКУ
+        st.markdown("**Координати осередку аварії:**")
+        col_c1, col_c2 = st.columns(2)
+        with col_c1:
+            input_lat_val = st.number_input("Широта (Lat):", value=st.session_state["lat"], format="%.4f", step=0.001)
+        with col_c2:
+            input_lon_val = st.number_input("Довгота (Lon):", value=st.session_state["lon"], format="%.4f", step=0.001)
+        
+        # 2) КНОПКА "РОЗРАХУВАТИ"
+        btn_calc = st.form_submit_button("🧮 РОЗРАХУВАТИ")
+
+    if btn_calc:
+        st.session_state["lat"] = round(input_lat_val, 4)
+        st.session_state["lon"] = round(input_lon_val, 4)
+
     allow_click_move = st.checkbox("Змінювати координати осередку кліком по карті", value=False)
     
     # --------------------------------------------------------------------------
@@ -373,7 +372,7 @@ with col_inputs:
 
     s_res = 8.72e-4 * (g_res ** 2) * phi_res
 
-    # ВІДОБРАЖЕННЯ РЕЗУЛЬТАТІВ У ЛІВІЙ КОЛОНЦІ
+    # 4) ВІДОБРАЖЕННЯ РЕЗУЛЬТАТІВ У ЛІВІЙ КОЛОНЦІ (БУКВА Г ПІСЛЯ Ra ВИКЛЮЧЕНА)
     results_html = f"""
     <div class="compact-container">
 
@@ -467,7 +466,7 @@ with col_map:
     # --------------------------------------------------------------------------
     st.divider()
     st.subheader("Додавання тексту на карту")
-    st.markdown("1. Переконайтесь, що галочка визначення координат кліком вимкнена (у лівому меню).\n2. **Клікніть мишкою** на карті там, де має бути текст.\n3. Введіть текст у поле нижче та натисніть 'Додати'.")
+    st.markdown("1. Переконайтесь, що галочка визначення координат кліком вимкнена.\n2. **Клікніть мишкою** на карті там, де має бути текст.\n3. Введіть текст у поле нижче та натисніть 'Додати'.")
     
     if map_data and map_data.get("last_clicked"):
         c_lat = round(map_data["last_clicked"]["lat"], 4)
@@ -497,7 +496,7 @@ with col_map:
             st.session_state["user_texts"] = []
             st.rerun()
 
-    # Зміна координат осередку, якщо увімкнено чекбокс
+    # Зміна координат осередку, якщо увімкнено відповідний чекбокс
     if allow_click_move and map_data and map_data.get("last_clicked"):
         click_lat = round(map_data["last_clicked"]["lat"], 4)
         click_lon = round(map_data["last_clicked"]["lng"], 4)
