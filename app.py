@@ -315,9 +315,9 @@ with col_inputs:
     # ФОРМА З КНОПКОЮ "РОЗРАХУВАТИ"
     with st.form(key="accident_params_form"):
         substances = list(TABLE_G_T1.keys()) if TABLE_G_T1 else ["Хлор"]
-        substance = st.selectbox("СДОР / НХР:", substances)
+        substance = st.selectbox("Назва НХР:", substances)
         
-        q_val = st.number_input("Кількість СДОР (т):", min_value=0.1, value=10.0, step=1.0)
+        q_val = st.number_input("Кількість НХР (т):", min_value=0.1, value=10.0, step=1.0)
         
         vert_st = st.selectbox("Вертикальна стійкість:", ["Інверсія", "Ізотермія", "Конвекція"])
         wind_v = st.number_input("Швидкість вітру (м/с):", min_value=0.5, value=2.0, step=0.5)
@@ -388,7 +388,7 @@ with col_inputs:
 
     ---
 
-    **3. Загальна глибина зони забруднення ($Г$):**
+    **3. Загальна глибина прогнозованої зони хімічного забруднення ($Г$):**
     $$Г = \\max(Г_1, Г_2) + R_a$$
     $$Г = \\max({g1_res:.2f}, {g2_res:.2f}) + {r_a:.1f} = \\mathbf{{{g_res:.2f}}}\\text{{ км}}$$
 
@@ -465,7 +465,7 @@ with col_map:
     # ПАНЕЛЬ НАНЕСЕННЯ ТЕКСТУ
     # --------------------------------------------------------------------------
     st.divider()
-    st.subheader("Додавання тексту на карту")
+    st.subheader("Порядок нанесення тексту на карту:")
     st.markdown("1. Переконайтесь, що галочка визначення координат кліком вимкнена.\n2. **Клікніть мишкою** на карті там, де має бути текст.\n3. Введіть текст у поле нижче та натисніть 'Додати'.")
     
     if map_data and map_data.get("last_clicked"):
