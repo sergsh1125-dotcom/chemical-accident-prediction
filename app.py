@@ -304,7 +304,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3) НАЗВА ЗАСТОСУНКУ
 st.title("Прогнозування масштабів хімічної аварії")
 
 col_inputs, col_map = st.columns([1, 2])
@@ -315,18 +314,26 @@ with col_inputs:
     # ФОРМА З КНОПКОЮ "РОЗРАХУВАТИ"
     with st.form(key="accident_params_form"):
         substances = list(TABLE_G_T1.keys()) if TABLE_G_T1 else ["Хлор"]
-        substance = st.selectbox("Назва НХР:", substances)
+        # 2) ВИКЛЮЧЕНО "СДЯВ" — ЗАЛИШЕНО НХР
+        substance = st.selectbox("НХР:", substances)
         
         q_val = st.number_input("Кількість НХР (т):", min_value=0.1, value=10.0, step=1.0)
         
         vert_st = st.selectbox("Вертикальна стійкість:", ["Інверсія", "Ізотермія", "Конвекція"])
-        wind_v = st.number_input("Швидкість вітру (м/с):", min_value=0.5, value=2.0, step=0.5)
+        
+        # 1) ВИПАДАЮЧИЙ СПИСОК ШВИДКОСТІ ВІТРУ
+        wind_options = [1.0, 2.0, 3.0, 4.0]
+        if vert_st == "Ізотермія":
+            wind_options.append(10.0)
+            
+        wind_v = st.selectbox("Швидкість вітру (м/с):", wind_options, index=1)
+        
         wind_deg = st.number_input("Напрямок вітру (градуси):", min_value=0, max_value=360, value=180, step=5)
         temp = st.number_input("Температура повітря (°C):", value=20.0, step=1.0)
         
         is_closed = st.checkbox("Наявність обвалування / піддону", value=False)
         
-        # 3) ВІКНО КООРДИНАТ ОСЕРЕДКУ
+        # ВІКНО КООРДИНАТ ОСЕРЕДКУ
         st.markdown("**Координати осередку аварії:**")
         col_c1, col_c2 = st.columns(2)
         with col_c1:
@@ -334,7 +341,6 @@ with col_inputs:
         with col_c2:
             input_lon_val = st.number_input("Довгота (Lon):", value=st.session_state["lon"], format="%.4f", step=0.001)
         
-        # 2) КНОПКА "РОЗРАХУВАТИ"
         btn_calc = st.form_submit_button("🧮 РОЗРАХУВАТИ")
 
     if btn_calc:
@@ -372,7 +378,7 @@ with col_inputs:
 
     s_res = 8.72e-4 * (g_res ** 2) * phi_res
 
-    # 4) ВІДОБРАЖЕННЯ РЕЗУЛЬТАТІВ У ЛІВІЙ КОЛОНЦІ (БУКВА Г ПІСЛЯ Ra ВИКЛЮЧЕНА)
+    # ВІДОБРАЖЕННЯ РЕЗУЛЬТАТІВ У ЛІВІЙ КОЛОНЦІ
     results_html = f"""
     <div class="compact-container">
 
@@ -388,7 +394,7 @@ with col_inputs:
 
     ---
 
-    **3. Загальна глибина прогнозованої зони хімічного забруднення ($Г$):**
+    **3. Загальна глибина зони забруднення ($Г$):**
     $$Г = \\max(Г_1, Г_2) + R_a$$
     $$Г = \\max({g1_res:.2f}, {g2_res:.2f}) + {r_a:.1f} = \\mathbf{{{g_res:.2f}}}\\text{{ км}}$$
 
@@ -465,7 +471,7 @@ with col_map:
     # ПАНЕЛЬ НАНЕСЕННЯ ТЕКСТУ
     # --------------------------------------------------------------------------
     st.divider()
-    st.subheader("Порядок нанесення тексту на карту:")
+    st.subheader("Додавання тексту на карту")
     st.markdown("1. Переконайтесь, що галочка визначення координат кліком вимкнена.\n2. **Клікніть мишкою** на карті там, де має бути текст.\n3. Введіть текст у поле нижче та натисніть 'Додати'.")
     
     if map_data and map_data.get("last_clicked"):
