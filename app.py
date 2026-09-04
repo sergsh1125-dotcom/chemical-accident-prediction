@@ -301,11 +301,11 @@ with col_inputs:
     st.subheader("Вихідні дані аварії")
     
     substances = list(TABLE_G_T1.keys()) if TABLE_G_T1 else ["Аміак", "Хлор"]
-    substance = st.selectbox("НХР:", substances, key="substance_select")
+    substance = st.selectbox("Назва НХР:", substances, key="substance_select")
     
     q_val = st.number_input("Кількість НХР (т):", min_value=0.1, value=10.0, step=1.0, key="q_val_input")
     
-    vert_st = st.selectbox("Вертикальна стійкість:", ["Інверсія", "Ізотермія", "Конвекція"], key="vert_st_select")
+    vert_st = st.selectbox("Ступінь вертикальної стійкісті повітря:", ["Інверсія", "Ізотермія", "Конвекція"], key="vert_st_select")
     
     wind_options = [1.0, 2.0, 3.0, 4.0]
     if vert_st == "Ізотермія":
@@ -319,7 +319,7 @@ with col_inputs:
     is_closed = st.checkbox("Наявність обвалування / піддону", value=False, key="is_closed_chk")
     
     st.markdown("---")
-    st.subheader("🏞 Рельєф та рослинність (Додатки 5, 6)")
+    st.subheader("Рельєф та рослинність")
     
     kp_keys = list(KP_OPTIONS.keys()) if KP_OPTIONS else [
         "Рельєф - рівнинний, рослинність - степова (зима)",
@@ -347,7 +347,7 @@ with col_inputs:
     with col_c2:
         input_lon_val = st.number_input("Довгота (Lon):", value=st.session_state["lon"], format="%.4f", step=0.001, key="lon_input")
     
-    if st.button("🧮 РОЗРАХУВАТИ", key="btn_calc_main"):
+    if st.button("РОЗРАХУВАТИ", key="btn_calc_main"):
         st.session_state["lat"] = round(input_lat_val, 4)
         st.session_state["lon"] = round(input_lon_val, 4)
 
